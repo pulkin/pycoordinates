@@ -136,11 +136,11 @@ class TestBasis:
     def test_stack(self):
         nv = self.b.vectors.copy()
 
-        st = self.b.stack(self.b, vector='y')
+        st = self.b.stack(self.b, vector=1)
         nv[1] *= 2
         testing.assert_allclose(st.vectors, nv)
 
-        st = st.stack(st, st, vector='x')
+        st = st.stack(st, st, vector=0)
         nv[0] *= 3
         testing.assert_allclose(st.vectors, nv)
 

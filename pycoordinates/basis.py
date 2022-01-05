@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from .util import roarray, compute_angles
+from .util import roarray, compute_angles, input_as_list
 from .attrs import check_vectors, convert_vectors, check_vectors_inv, convert_vectors_inv
 
 import numpy as np
@@ -266,11 +266,7 @@ class Basis(Identifiable):
         -------
         An array with transformed coordinates.
         """
-        return np.tensordot(
-            coordinates,
-            self.transform_matrix(to),
-            axes=((len(coordinates.shape) - 1,), (0,))
-        )
+        return coordinates @ self.transform_matrix(to)
 
     def transform_from(self, fr: Basis, coordinates: ndarray) -> ndarray:
         """
@@ -353,8 +349,8 @@ class Basis(Identifiable):
         rot_matrix = c * np.eye(self.vectors.shape[0]) + s * axis_x + (1 - c) * np.dot(axis[:, None], axis[None, :])
         return Basis(self.vectors @ rot_matrix)
 
-    def stack(self, *other, vector: Union[str, int] = 'x', tolerance: float = 1e-10,
-              restrict_collinear: bool = False) -> Basis:
+    @input_as_list
+    def stack(self, other, vector: int, tolerance: float = 1e-10, restrict_collinear: bool = False) -> Basis:
         """
         Stacks several bases along one of the vectors.
 
@@ -377,16 +373,15 @@ class Basis(Identifiable):
         Stacked basis.
         """
         other = self, *other
-        d = {'x': 0, 'y': 1, 'z': 2}.get(vector, vector)
 
         other_vectors = list(range(other[0].vectors.shape[0]))
-        del other_vectors[d]
+        del other_vectors[vector]
 
         # 3d array with lattice vectors: shapes[i,j,k] i=cell, j=lattice vector, k = component
         shapes = np.concatenate(tuple(i.vectors[None, ...] for i in other), axis=0)
 
         # Check if non-stacking lattice vectors coincide
-        stacking_vectors_sum = shapes[:, d, :].sum(axis=0)
+        stacking_vectors_sum = shapes[:, vector, :].sum(axis=0)
         vec_lengths = (shapes ** 2).sum(axis=2) ** 0.5
         other_vectors_d = shapes[:, other_vectors, :] - shapes[0, other_vectors, :][None, ...]
         other_vectors_ds = (other_vectors_d ** 2).sum(axis=-1) ** .5
@@ -400,19 +395,19 @@ class Basis(Identifiable):
                 ))
 
         if restrict_collinear:
-            angles = np.abs(compute_angles(shapes[:, d, :], stacking_vectors_sum[None, :]) - 1)
+            angles = np.abs(compute_angles(shapes[:, vector, :], stacking_vectors_sum[None, :]) - 1)
             if np.any(angles > tolerance):
                 raise ValueError('Vectors to stack along are not collinear:\n{}\nCheck your input basis vectors or set '
                                  'tolerance to at least {} to silence this exception'.format(shapes, np.amax(angles)))
 
         shape = self.vectors.copy()
-        shape[d, :] = stacking_vectors_sum
+        shape[vector, :] = stacking_vectors_sum
         return Basis(shape, meta=self.meta)
 
-    def repeated(self, *times) -> Basis:
+    @input_as_list
+    def repeated(self, times) -> Basis:
         """
-        Produces a new instance from a given one by repeating it along
-        all vectors the given numbers of times.
+        Increases the Basis by cloning it along all vectors.
 
         Parameters
         ----------
@@ -430,7 +425,7 @@ class Basis(Identifiable):
 
     def rounded(self, decimals: int = 8) -> Basis:
         """
-        Rounds this Basis down to the given number of decimals.
+        Rounds this Basis down to the provided number of decimals.
 
         Parameters
         ----------
@@ -442,3 +437,24 @@ class Basis(Identifiable):
         A new Basis with rounded vectors.
         """
         return Basis(np.around(self.vectors, decimals=decimals), meta=self.meta)
+
+    @input_as_list
+    def transpose_vectors(self, order: list) -> Basis:
+        """
+        Transposes basis vectors.
+
+        Parameters
+        ----------
+        order : list
+            The new order as a list of integers.
+
+        Examples
+        --------
+            >>> basis = Basis.orthorhombic((1, 2, 3))
+            >>> b = basis.transpose_vectors(0, 1, 2) # does nothing
+            >>> b = basis.transpose_vectors(1, 0, 2) # swaps first and second vectors.
+        """
+        ref_order = list(range(len(self.vectors)))
+        if set(order) != set(ref_order):
+            raise ValueError(f"order={order} must be a transpose of {ref_order}")
+        return Basis(self.vectors[order, :], meta=self.meta)

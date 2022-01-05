@@ -1,7 +1,8 @@
 from numpy import array, ndarray
 import numpy as np
+from scipy.interpolate import LinearNDInterpolator
 
-from functools import partial
+from functools import partial, wraps
 from typing import Union
 
 
@@ -95,3 +96,64 @@ def generate_path(nodes: Union[list, tuple, ndarray], n: int, skip_segments: Uni
     for pt1, pt2, _n, e in zip(points_l, points_r, buckets, endpoints):
         result.append(interpolate(pt1, pt2, _n, e))
     return np.concatenate(result)
+
+
+def input_as_list(func):
+    """Transforms multiple position-only arguments into a list."""
+    @wraps(func)
+    def a_w(*args, **kwargs):
+        self = args[0]
+        if len(args) > 2:
+            args = [self, list(args[1:])]
+        elif len(args) == 2:
+            try:
+                iter(args[1])
+            except TypeError:
+                args = [self, list(args[1:])]
+        else:
+            args = [self, []]
+
+        return func(*args, **kwargs)
+
+    return a_w
+
+
+def qhull_interpolation_driver(points: ndarray, values: ndarray, points_i: ndarray, **kwargs) -> ndarray:
+    """
+    Delaunay interpolation driver provided by Qhull and interfaced with scipy.
+
+    Parameters
+    ----------
+    points : ndarray
+        Sparse point coordinates.
+    values : ndarray
+        Point values.
+    points_i : ndarray
+        Target point coordinates to interpolate at.
+    kwargs
+        Arguments to constructor.
+
+    Returns
+    -------
+    The interpolated values.
+    """
+    return LinearNDInterpolator(points, values, **kwargs)(points_i)
+
+
+def derived_from(derived: ndarray, reference: ndarray) -> ndarray:
+    """
+    Arrays derived from other arrays.
+    Used to cast units between arrays (stub for now).
+
+    Parameters
+    ----------
+    derived : ndarray
+        Derived array.
+    reference : ndarray
+        The reference array.
+
+    Returns
+    -------
+    The resulting array adjusted.
+    """
+    return derived
