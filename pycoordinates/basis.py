@@ -202,6 +202,10 @@ class Basis(Identifiable):
         return roarray(np.linalg.inv(self.vectors))
 
     @cached_property
+    def vectors_len(self) -> ndarray:
+        return np.linalg.norm(self.vectors, axis=1)
+
+    @cached_property
     def det(self):
         return float(np.linalg.det(self.vectors))
 
@@ -314,6 +318,26 @@ class Basis(Identifiable):
         An array with transformed coordinates.
         """
         return self.transform_from(Basis(np.eye(self.vectors.shape[0])), coordinates)
+
+    @input_as_list
+    def strained(self, gaps: list, units="crystal") -> Basis:
+        """
+        Elongates basis vectors by the specified relative or absolute
+        amounts.
+
+        Parameters
+        ----------
+        gaps : list
+            The elongation amount in relative or absolute units.
+        units : str
+            Units of `gaps`: 'cartesian' (absolute) or 'crystal' (relative).
+
+        Returns
+        -------
+        A strained basis.
+        """
+        gaps = _gaps2x(self, gaps, units)
+        return self.copy(vectors=self.vectors * gaps[..., None])
 
     def rotated(self, axis: ndarray, angle: float, units: str = 'rad') -> Basis:
         """
@@ -458,3 +482,30 @@ class Basis(Identifiable):
         if set(order) != set(ref_order):
             raise ValueError(f"order={order} must be a transpose of {ref_order}")
         return Basis(self.vectors[order, :], meta=self.meta)
+
+
+def _gaps2x(basis, gaps: list, units: str) -> np.ndarray:
+    """
+    Transforms gaps to factors.
+
+    Parameters
+    ----------
+    gaps : list
+        The elongation amount in relative or absolute units.
+    units : str
+        Units of `gaps`: 'cartesian' (absolute) or 'crystal' (relative).
+
+    Returns
+    -------
+    A strained basis.
+    """
+    gaps = np.array(gaps, dtype=float)
+    if units == "cartesian":
+        gaps /= basis.vectors_len
+    elif units == "crystal":
+        pass
+    else:
+        raise ValueError(f"unknown units={units}")
+
+    gaps += 1
+    return gaps

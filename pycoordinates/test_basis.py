@@ -91,6 +91,12 @@ class TestBasis:
     def test_volume(self):
         assert abs(self.b.volume - 1.5 * 3. ** .5) < 1e-7
 
+    def test_len(self):
+        testing.assert_allclose(self.b.vectors_len, (1, 1, 3))
+
+    def test_strained(self):
+        testing.assert_allclose(self.b.strained((0, 1, 2)).vectors, self.b.vectors * [[1], [2], [3]])
+
     def test_reciprocal(self):
         testing.assert_allclose(self.b.reciprocal.vectors.T @ self.b.vectors, np.eye(3), atol=1e-10)
 

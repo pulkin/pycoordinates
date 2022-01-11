@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from .basis import Basis
+from .basis import Basis, _gaps2x
 from .util import roarray, input_as_list, compute_angles, qhull_interpolation_driver, derived_from
 from .attrs import check_vectors_inv, convert_vectors_inv, convert_coordinates, check_coordinates, convert_values,\
     check_values
@@ -363,15 +363,7 @@ class Cell(Basis):
         -------
         A bigger cell where points are spatially isolated from their images.
         """
-        gaps = np.array(gaps, dtype=float)
-        if units == "cartesian":
-            gaps /= ((self.vectors ** 2).sum(axis=1) ** .5)
-        elif units == "crystal":
-            pass
-        else:
-            raise ValueError(f"unknown units={units}")
-
-        gaps += 1
+        gaps = _gaps2x(self, gaps, units)
         vectors = self.vectors * gaps[..., None]
         coordinates = self.coordinates / gaps[None, ...]
         coordinates += (0.5 * (gaps - 1) / gaps)[None, ...]
@@ -420,7 +412,7 @@ class Cell(Basis):
             >>> cell.select(0,0,0,0.5,1,1) # select the 'left' part
             >>> cell.select(0.5,0,0,1,1,1) # select the 'right' part
         """
-        if not len(piece) == 2 * self.vectors.shape[0]:
+        if len(piece) != 2 * self.vectors.shape[0]:
             raise ValueError(f"len(piece) = {len(piece)} expected {2 * len(self.vectors)}")
 
         piece = np.reshape(piece, (2, -1))
