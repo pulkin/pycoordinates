@@ -1,3 +1,5 @@
+import pytest
+
 from .basis import Basis
 from .cell import Cell
 
@@ -5,6 +7,81 @@ from numpy import testing
 import numpy as np
 from unittest import TestCase
 import pickle
+
+
+def test_init_0():
+    n = Cell(
+        Basis.orthorhombic((1e-10, 1e-10, 1e-10)),
+        ((.25, .5, .5), (.5, .25, .5), (.5, .5, .25), (.25, .25, .25)),
+        ((1,), (2,)) * 2,
+    )
+    testing.assert_equal(n.coordinates, ((.25, .5, .5), (.5, .25, .5), (.5, .5, .25), (.25, .25, .25)))
+    testing.assert_equal(n.values, ((1,), (2,)) * 2)
+
+
+def test_init_1():
+    n = Cell.from_cartesian(
+        Basis.orthorhombic((1, 2, 3)),
+        [(.5, .5, .5)],
+        ['N'],
+    )
+    testing.assert_equal(n.coordinates, ((.5, .25, 1. / 6),))
+
+
+def test_init_fail_size_0():
+    with pytest.raises(ValueError):
+        Cell(
+            Basis.orthorhombic((1, 1, 1)),
+            [(.25, .5, .5, .5)],
+            ['C'],
+        )
+
+
+def test_init_fail_size_1():
+    with pytest.raises(ValueError):
+        Cell(
+            Basis.orthorhombic((1, 1, 1)),
+            (
+                (.25, .5, .5, .5),
+                (.25, .5, .5, .5),
+            ),
+            ['C'] * 2,
+        )
+
+
+def test_init_fail_size_2():
+    with pytest.raises(ValueError):
+        Cell(
+            Basis.orthorhombic((1, 1, 1)),
+            (
+                (.25, .5, .5),
+                (.25, .5, .5),
+            ),
+            ['C'] * 3,
+        )
+
+
+def test_init_fail_shape_0():
+    with pytest.raises(ValueError):
+        Cell(
+            Basis.orthorhombic((1, 1, 1)),
+            [[(.25, .5, .5)]],
+            ['C'],
+        )
+
+
+def test_random_0():
+    random = Cell.random(1, {"a": 3, "b": 5})
+    testing.assert_allclose(random.vectors, 2 * np.eye(3))
+    testing.assert_equal(random.values, ["a"] * 3 + ["b"] * 5)
+    assert random.coordinates.shape == (8, 3)
+    testing.assert_array_less(random.coordinates, 1)
+    testing.assert_array_less(0, random.coordinates)
+
+
+def test_random_fail_0():
+    with pytest.raises(ValueError):
+        Cell.random(1, {"a": 3, "b": 5}, shape="unknown")
 
 
 class CellInitializationTest(TestCase):
@@ -28,61 +105,6 @@ class CellInitializationTest(TestCase):
         )
         testing.assert_equal(hcpCo.coordinates, ((0., 0., 0.), (1. / 3., 1. / 3., 0.5)))
         testing.assert_equal(hcpCo.values, ['Co'] * 2)
-
-    def test_init_2(self):
-        n = Cell(
-            Basis.orthorhombic((1e-10, 1e-10, 1e-10)),
-            ((.25, .5, .5), (.5, .25, .5), (.5, .5, .25), (.25, .25, .25)),
-            ((1,), (2,)) * 2,
-        )
-        testing.assert_equal(n.coordinates, ((.25, .5, .5), (.5, .25, .5), (.5, .5, .25), (.25, .25, .25)))
-        testing.assert_equal(n.values, ((1,), (2,)) * 2)
-
-    def test_init_3(self):
-        n = Cell.from_cartesian(
-            Basis.orthorhombic((1, 2, 3)),
-            [(.5, .5, .5)],
-            ['N'],
-        )
-        testing.assert_equal(n.coordinates, ((.5, .25, 1. / 6),))
-
-    def test_init_fail_size_0(self):
-        with self.assertRaises(ValueError):
-            Cell(
-                Basis.orthorhombic((1, 1, 1)),
-                [(.25, .5, .5, .5)],
-                ['C'],
-            )
-
-    def test_init_fail_size_1(self):
-        with self.assertRaises(ValueError):
-            Cell(
-                Basis.orthorhombic((1, 1, 1)),
-                (
-                    (.25, .5, .5, .5),
-                    (.25, .5, .5, .5),
-                ),
-                ['C'] * 2,
-            )
-
-    def test_init_fail_size_2(self):
-        with self.assertRaises(ValueError):
-            Cell(
-                Basis.orthorhombic((1, 1, 1)),
-                (
-                    (.25, .5, .5),
-                    (.25, .5, .5),
-                ),
-                ['C'] * 3,
-            )
-
-    def test_init_fail_shape_0(self):
-        with self.assertRaises(ValueError):
-            Cell(
-                Basis.orthorhombic((1, 1, 1)),
-                [[(.25, .5, .5)]],
-                ['C'],
-            )
 
 
 class TestCell(TestCase):
@@ -151,7 +173,7 @@ class CellTest(TestCase):
     @staticmethod
     def __co__(a, h, **kwargs):
         return Cell(
-            Basis(((a, 0, 0), (.5 * a, .5 * a * 3. ** .5, 0), (0, 0, h))),
+            ((a, 0, 0), (.5 * a, .5 * a * 3. ** .5, 0), (0, 0, h)),
             ((0., 0., 0.), (1. / 3., 1. / 3., 0.5)),
             ['Co'] * 2,
             **kwargs
@@ -160,7 +182,7 @@ class CellTest(TestCase):
     @staticmethod
     def __bs__(a, h, **kwargs):
         return Cell(
-            Basis(((a, 0, 0), (.5 * a, .5 * a * 3.**.5, 0), (0, 0, h))),
+            ((a, 0, 0), (.5 * a, .5 * a * 3.**.5, 0), (0, 0, h)),
             ((0., 0., 0.), (1. / 3., 1. / 3., 0.5)),
             [3] * 2,
             **kwargs
@@ -377,10 +399,14 @@ class CellTest(TestCase):
         testing.assert_allclose(c1.coordinates, ((.6, .6, .6), (1. / 3 + .6, 1. / 3 + .6, 0.1)))
         testing.assert_equal(c1.values, ('Co', 'O'))
 
-        c1 = c.normalized(sort='z')
-        testing.assert_equal(c1.vectors, self.cell.vectors)
-        testing.assert_allclose(c1.coordinates, ((1. / 3 + .6, 1. / 3 + .6, 0.1), (.6, .6, .6)))
-        testing.assert_equal(c1.values, ('O', 'Co'))
+        c2 = c.normalized(sort='z')
+        testing.assert_equal(c2.vectors, self.cell.vectors)
+        testing.assert_allclose(c2.coordinates, ((1. / 3 + .6, 1. / 3 + .6, 0.1), (.6, .6, .6)))
+        testing.assert_equal(c2.values, ('O', 'Co'))
+
+        assert c.normalized(sort=1) == c1
+        assert c.normalized(sort=(1, 1, 1)) == c2
+        assert c.normalized(sort=(-1, -1, -1)) == c1
 
     def test_packed(self):
         cell = Cell(
