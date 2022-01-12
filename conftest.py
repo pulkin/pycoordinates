@@ -1,17 +1,9 @@
 import numpy as np
-from numpy import ndarray
 from pycoordinates import Basis, Cell, Grid
 from itertools import zip_longest
 
 
 def pytest_assertrepr_compare(op, left, right):
-    if isinstance(left, ndarray) and isinstance(right, ndarray) and op == "==":
-        return [
-            f"numpy arrays equal",
-            f"  {left} !=",
-            f"    {right}",
-        ]
-
     if isinstance(left, Basis) and isinstance(right, Basis) and op == "==":
         output = [f"{type(left).__name__} (L) == {type(right).__name__} (R)"]
         if type(left) is not type(right):
