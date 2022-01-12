@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from .basis import Basis, _gaps2x
-from .util import roarray, input_as_list, compute_angles, qhull_interpolation_driver, derived_from
+from . import grid
+from .util import roarray, input_as_list, compute_angles, qhull_interpolation_driver, derived_from, _piece2bounds
 from .attrs import check_vectors_inv, convert_vectors_inv, convert_coordinates, check_coordinates, convert_values,\
     check_values
 
@@ -641,6 +642,40 @@ class Cell(Basis):
         """
         return self.__class__(super().rounded(decimals), np.around(self.coordinates, decimals=decimals), self.values, meta=self.meta)
 
+    def as_grid(self, fill: float = np.nan) -> grid.Grid:
+        """
+        Converts this unit cell into a grid.
+
+        Parameters
+        ----------
+        fill
+            The value to use for missing grid points.
+
+        Returns
+        -------
+        A grid with the data from this cell.
+        """
+        # Convert coordinates
+        coordinates = list(
+            np.sort(
+                np.unique(self.coordinates[:, i])
+            ) for i in range(self.coordinates.shape[1])
+        )
+
+        # A coordinates lookup table
+        coord2index = list(
+            dict(zip(a, range(a.size))) for a in coordinates
+        )
+
+        # Convert values
+        data = fill * np.ones(tuple(a.size for a in coordinates) + self.values.shape[1:], dtype=self.values.dtype)
+
+        for c, v in zip(self.coordinates, self.values):
+            indexes = tuple(coord2index[i][cc] for i, cc in enumerate(c))
+            data[indexes] = v
+
+        return grid.Grid(self, coordinates, data)
+
     @input_as_list
     def interpolate(self, points: list, driver=None, periodic: bool = True, **kwargs) -> Cell:
         """
@@ -685,8 +720,3 @@ class Cell(Basis):
 
         # Interpolate
         return self.__class__(self, points, derived_from(driver(data_points, data_values, points_i, **kwargs), self.values))
-
-
-def _piece2bounds(piece: Union[ndarray, list, tuple], dim: int) -> (ndarray, ndarray):
-    piece = np.reshape(piece, (2, dim))
-    return np.amin(piece, axis=0), np.amax(piece, axis=0)

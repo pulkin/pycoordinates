@@ -98,6 +98,45 @@ def generate_path(nodes: Union[list, tuple, ndarray], n: int, skip_segments: Uni
     return np.concatenate(result)
 
 
+def grid_coordinates(arrays: tuple) -> np.ndarray:
+    """
+    Transforms several 1D arrays of coordinates into
+    (N + 1)D mesh coordinate array.
+
+    Parameters
+    ----------
+    arrays
+        1D arrays as a tuple.
+
+    Returns
+    -------
+    A multidimensional coordinate array.
+    """
+    mg = np.meshgrid(*arrays, indexing='ij')
+    return np.concatenate(tuple(i[..., None] for i in mg), axis=len(mg))
+
+
+def uniform_grid(size: tuple, endpoint: bool = False) -> np.ndarray:
+    """
+    Sample a multidimensional 0-1 interval box.
+
+    Parameters
+    ----------
+    size
+        A tuple of integers specifying point count per dimension.
+    endpoint
+        Whether to include 1 to the right of the interval.
+
+    Returns
+    -------
+    A multidimensional coordinate array.
+    """
+    return grid_coordinates(tuple(
+        np.linspace(0, 1, i, endpoint=endpoint)
+        for i in size
+    ))  # rewrite with np.mgrid?
+
+
 def input_as_list(func):
     """Transforms multiple position-only arguments into a list."""
     @wraps(func)
@@ -157,3 +196,8 @@ def derived_from(derived: ndarray, reference: ndarray) -> ndarray:
     The resulting array adjusted.
     """
     return derived
+
+
+def _piece2bounds(piece: Union[ndarray, list, tuple], dim: int) -> (ndarray, ndarray):
+    piece = np.reshape(piece, (2, dim))
+    return np.amin(piece, axis=0), np.amax(piece, axis=0)

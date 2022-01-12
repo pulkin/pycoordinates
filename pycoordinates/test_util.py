@@ -1,4 +1,4 @@
-from .util import generate_path
+from .util import generate_path, uniform_grid
 from .basis import Basis
 
 import numpy as np
@@ -92,3 +92,18 @@ def test_generate_path_3():
         (1, 0, 0),
         (1, 0, 1),
     ))
+
+
+def test_uniform_grid():
+    c = uniform_grid((1, 2, 3))
+    testing.assert_equal(c, [[
+        [
+            (0, 0, 0),
+            (0, 0, 1. / 3),
+            (0, 0, 2. / 3),
+        ], [
+            (0, .5, 0),
+            (0, .5, 1. / 3),
+            (0, .5, 2. / 3),
+        ],
+    ]])

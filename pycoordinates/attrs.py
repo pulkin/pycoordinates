@@ -56,3 +56,25 @@ def check_values(instance, attribute: str, values: ndarray):
     if len(values) != len(instance.coordinates):
         raise ValueError(f'values.shape = {values.shape} does not match coordinates.shape={instance.coordinates.shape}')
 
+
+def convert_grid(coordinates: tuple) -> tuple:
+    return tuple(map(ro_float_array_copy, coordinates))
+
+
+def check_grid(instance, attribute: str, coordinates: tuple):
+    dims = len(instance.vectors)
+    if len(coordinates) != dims:
+        raise ValueError(f"len(coordinates) = {len(coordinates)} does not match vector count len(vectors) = {dims}")
+    for i, c in enumerate(coordinates):
+        if c.ndim != 1:
+            raise ValueError(f"coordinates[{i}].shape={c.shape} is not a 1D array")
+
+
+def convert_grid_values(values: Union[ndarray, list, tuple, str]) -> ndarray:
+    return ro_float_array_copy(values)
+
+
+def check_grid_values(instance, attribute: str, values: ndarray):
+    expected_shape = instance.grid_shape
+    if values.shape[:len(expected_shape)] != expected_shape:
+        raise ValueError(f'values.shape = {values.shape} does not match grid_shape={expected_shape}')

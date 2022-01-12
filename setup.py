@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 from setuptools import setup, find_packages
+from setuptools.extension import Extension
+from Cython.Build import cythonize
 
 
 with open('requirements.txt') as f:
@@ -19,4 +21,5 @@ setup(
     long_description=open('README.md').read(),
     long_description_content_type="text/markdown",
     install_requires=requirements,
+    ext_modules=cythonize([Extension("pycoordinates.tetrahedron", ["cython/tetrahedron.pyx"])]),
 )
