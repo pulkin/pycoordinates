@@ -197,7 +197,8 @@ class TestBasis:
         serialized["type"] = "dfttools.types.Basis"
         with pytest.raises(TypeError):
             Basis.from_state_dict(serialized, check_type=True)
-        assert self.b == Basis.from_state_dict(serialized)  # warn by default
+        with pytest.warns(UserWarning):
+            assert self.b == Basis.from_state_dict(serialized)
 
     def test_deserialization_multiple(self):
         assert self.b == Basis.from_state_data(self.b.state_dict())

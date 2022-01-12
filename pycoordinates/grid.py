@@ -273,7 +273,7 @@ class Grid(Basis):
         for i, g in enumerate(grids[1:]):
             if isinstance(g, Grid):
                 for dim in other_vectors:
-                    if not np.all(g.coordinates[dim] == self.coordinates[dim]):
+                    if not np.array_equal(g.coordinates[dim], self.coordinates[dim]):
                         raise ValueError(f"Mismatch of grid coordinates along the dimension {dim:d} for cells 0 "
                                          f"and {i:d}")
 
