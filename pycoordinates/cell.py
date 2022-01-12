@@ -391,7 +391,7 @@ class Cell(Basis):
     @input_as_list
     def select(self, piece: list) -> ndarray:
         """
-        Selects points in this cell or grid inside a box in crystal basis.
+        Selects points in this cell inside a box defined in the crystal basis.
         Images are not included.
 
         Parameters
@@ -412,22 +412,17 @@ class Cell(Basis):
             >>> cell.select(0,0,0,0.5,1,1) # select the 'left' part
             >>> cell.select(0.5,0,0,1,1,1) # select the 'right' part
         """
-        if len(piece) != 2 * self.vectors.shape[0]:
-            raise ValueError(f"len(piece) = {len(piece)} expected {2 * len(self.vectors)}")
-
-        piece = np.reshape(piece, (2, -1))
-        p1 = np.amin(piece, axis=0)
-        p2 = np.amax(piece, axis=0)
+        p1, p2 = _piece2bounds(piece, len(self.vectors))
         return np.all(self.coordinates < p2[None, :], axis=1) & np.all(self.coordinates >= p1[None, :], axis=1)
 
     @input_as_list
-    def apply(self, selection) -> Cell:
+    def apply(self, selection: list) -> Cell:
         """
-        Applies a mask to this cell or grid to keep a subset of points.
+        Applies a mask to this cell to keep a subset of points.
 
         Parameters
         ----------
-        selection : list
+        selection
             A bool mask with selected species.
 
         Returns
@@ -446,13 +441,13 @@ class Cell(Basis):
     @input_as_list
     def discard(self, selection: list) -> Cell:
         """
-        Discards points from this cell or grid according to the mask specified.
-        Inverse of ``self.apply``.
+        Discards points from this cell according to the mask specified.
+        Complements ``self.apply``.
 
         Parameters
         ----------
-        selection : list
-            Species to discard.
+        selection
+            Points to discard.
 
         Returns
         -------
@@ -467,17 +462,17 @@ class Cell(Basis):
         return self.apply(~np.asanyarray(selection))
 
     @input_as_list
-    def cut(self, piece: list, select: Union[ndarray, list, tuple] = None) -> Cell:
+    def cut(self, piece: list, selection: Union[ndarray, list, tuple] = None) -> Cell:
         """
-        Selects a box inside this cell or grid and returns it as a smaller cell.
+        Selects a box inside this cell grid and returns it in a smaller cell.
         Basis vectors of the resulting instance are collinear to those of `self`.
 
         Parameters
         ----------
-        piece : list
+        piece
             Box dimensions ``[x_from, y_from, ..., z_from, x_to, y_to, ..., z_to]``,
             where x, y, z are basis vectors.
-        select : list
+        selection
             A custom selection mask or None if all points in the selected box
             have to be included.
 
@@ -485,15 +480,11 @@ class Cell(Basis):
         -------
         A smaller instance with a subset of points.
         """
-        if select is None:
-            select = self.select(piece)
-
-        piece = np.reshape(piece, (2, -1))
-        p1 = np.amin(piece, axis=0)
-        p2 = np.amax(piece, axis=0)
-
+        if selection is None:
+            selection = self.select(piece)
+        p1, p2 = _piece2bounds(piece, len(self.vectors))
         vectors = self.vectors * (p2 - p1)[:, None]
-        return self.cartesian_copy(vectors=vectors, cartesian=self.cartesian - p1 @ self.vectors).apply(select)
+        return self.cartesian_copy(vectors=vectors, cartesian=self.cartesian - p1 @ self.vectors).apply(selection)
 
     @input_as_list
     def merge(self, cells: list) -> Cell:
@@ -520,7 +511,7 @@ class Cell(Basis):
 
         return self.copy(coordinates=np.concatenate(c, axis=0), values=np.concatenate(v, axis=0))
 
-    def stack(self, *cells: list, vector: int, **kwargs):
+    def stack(self, *cells: list, vector: int, **kwargs) -> Cell:
         """
         Stack multiple cells along the provided vector.
 
@@ -538,9 +529,8 @@ class Cell(Basis):
         The resulting cells stacked.
         """
         cells = (self, *cells)
-        d = vector
-        not_d = list(range(self.vectors.shape[0]))
-        del not_d[d]
+        other_vectors = list(range(self.vectors.shape[0]))
+        del other_vectors[vector]
         dims = self.vectors.shape[0]
 
         basis = Basis.stack(*cells, vector=vector, **kwargs)
@@ -553,9 +543,9 @@ class Cell(Basis):
             if isinstance(c, Cell):
                 # Fix for not-exactly-the-same vectors
                 hvecs = c.vectors.copy()
-                hvecs[not_d] = self.vectors[not_d]
+                hvecs[other_vectors] = self.vectors[other_vectors]
                 cartesian.append(Basis(hvecs).transform_to_cartesian(c.coordinates) + shift[None, :])
-            shift += c.vectors[d, :]
+            shift += c.vectors[vector, :]
         cartesian = np.concatenate(cartesian, axis=0)
 
         return self.__class__.from_cartesian(basis, cartesian, values)
@@ -627,30 +617,29 @@ class Cell(Basis):
 
         Parameters
         ----------
-        new : list
+        new
             The new order as a list of integers.
 
         Returns
         -------
         A new unit cell with reordered vectors.
         """
-        return Cell(super().transpose_vectors(new), self.coordinates[:, new], self.values, meta=self.meta)
+        return self.__class__(super().transpose_vectors(new), self.coordinates[:, new], self.values, meta=self.meta)
 
     def rounded(self, decimals: int = 8) -> Cell:
         """
-        Rounds this Cell down to the provided number of decimals.
+        Rounds this cell down to the provided number of decimals.
 
         Parameters
         ----------
-        decimals : int
+        decimals
             Decimals.
 
         Returns
         -------
-        A new Basis with rounded vectors.
+        A new Cell with rounded vectors.
         """
-        return Cell(super().rounded(decimals), np.around(self.coordinates, decimals=decimals), self.values,
-                    meta=self.meta)
+        return self.__class__(super().rounded(decimals), np.around(self.coordinates, decimals=decimals), self.values, meta=self.meta)
 
     @input_as_list
     def interpolate(self, points: list, driver=None, periodic: bool = True, **kwargs) -> Cell:
@@ -696,3 +685,8 @@ class Cell(Basis):
 
         # Interpolate
         return self.__class__(self, points, derived_from(driver(data_points, data_values, points_i, **kwargs), self.values))
+
+
+def _piece2bounds(piece: Union[ndarray, list, tuple], dim: int) -> (ndarray, ndarray):
+    piece = np.reshape(piece, (2, dim))
+    return np.amin(piece, axis=0), np.amax(piece, axis=0)
