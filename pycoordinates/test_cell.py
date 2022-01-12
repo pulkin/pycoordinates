@@ -8,10 +8,11 @@ import pickle
 
 
 class CellInitializationTest(TestCase):
-    def setUp(self):
-        self.a = 2.510e-10
-        self.h = self.a * (2. / 3.) ** 0.5
-        self.hcpCo_b = Basis.triclinic((self.a,) * 3, (0.5,) * 3)
+    @classmethod
+    def setUpClass(cls):
+        cls.a = a = 2.510e-10
+        cls.h = a * (2. / 3.) ** 0.5
+        cls.hcpCo_b = Basis.triclinic((a,) * 3, (0.5,) * 3)
 
     def test_init_0(self):
         hcpCo = Cell(self.hcpCo_b, (0, 0, 0), ['Co'])
@@ -37,7 +38,7 @@ class CellInitializationTest(TestCase):
         testing.assert_equal(n.coordinates, ((.25, .5, .5), (.5, .25, .5), (.5, .5, .25), (.25, .25, .25)))
         testing.assert_equal(n.values, ((1,), (2,)) * 2)
 
-    def test_init_4(self):
+    def test_init_3(self):
         n = Cell.from_cartesian(
             Basis.orthorhombic((1, 2, 3)),
             [(.5, .5, .5)],
@@ -62,6 +63,25 @@ class CellInitializationTest(TestCase):
                     (.25, .5, .5, .5),
                 ),
                 ['C'] * 2,
+            )
+
+    def test_init_fail_size_2(self):
+        with self.assertRaises(ValueError):
+            Cell(
+                Basis.orthorhombic((1, 1, 1)),
+                (
+                    (.25, .5, .5),
+                    (.25, .5, .5),
+                ),
+                ['C'] * 3,
+            )
+
+    def test_init_fail_shape_0(self):
+        with self.assertRaises(ValueError):
+            Cell(
+                Basis.orthorhombic((1, 1, 1)),
+                [[(.25, .5, .5)]],
+                ['C'],
             )
 
 

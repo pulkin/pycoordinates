@@ -47,7 +47,7 @@ def test_init_fail_0():
         Grid(basis, (x, y, z), data[0])
 
 
-def test_init_grid_1():
+def test_init_1():
     x = np.linspace(0, 1, 10, endpoint=False)
     y = np.linspace(0, 1, 20, endpoint=False)
     z = np.linspace(0, 1, 30, endpoint=False)

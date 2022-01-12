@@ -52,6 +52,21 @@ def test_basis_init_6():
     testing.assert_allclose(Basis.diamond(3.14).volume, 3.14 ** 3 / 4)
 
 
+def test_basis_init_fail_0():
+    with pytest.raises(ValueError):
+        Basis(object())
+
+
+def test_basis_init_fail_1():
+    with pytest.raises(ValueError):
+        Basis([1, 2, 3])
+
+
+def test_basis_init_fail_2():
+    with pytest.raises(ValueError):
+        Basis.orthorhombic([1, 2, 3], vectors_inv=[1, .5, 1./3])
+
+
 class TestBasis:
     def setup_method(self):
         self.b = Basis.triclinic((1, 1, 3), (0, 0, 0.5), meta={"key": "value"})
@@ -149,6 +164,12 @@ class TestBasis:
         st = st.stack(st, st, vector=0)
         nv[0] *= 3
         testing.assert_allclose(st.vectors, nv)
+
+    def test_transpose_vectors(self):
+        b = self.b.transpose_vectors(0, 2, 1)
+        testing.assert_equal(b.vectors, self.b.vectors[(0, 2, 1), :])
+        with pytest.raises(ValueError):
+            self.b.transpose_vectors(0, 2, 0)
 
     def test_stack_raises(self):
         with pytest.raises(ValueError):
