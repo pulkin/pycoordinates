@@ -2,10 +2,18 @@
 from setuptools import setup, find_packages
 from setuptools.extension import Extension
 from Cython.Build import cythonize
+from Cython.Distutils import build_ext
 
 
 with open('requirements.txt') as f:
     requirements = f.read().splitlines()
+
+
+class DelayedNumpyInclude(build_ext):
+    def run(self):
+        from numpy import get_include
+        self.include_dirs.append(get_include())
+        super().run()
 
 
 setup(
@@ -21,5 +29,8 @@ setup(
     long_description=open('README.md').read(),
     long_description_content_type="text/markdown",
     install_requires=requirements,
-    ext_modules=cythonize([Extension("pycoordinates.tetrahedron", ["cython/tetrahedron.pyx"])]),
+    cmdclass = {'build_ext': DelayedNumpyInclude},
+    ext_modules=cythonize([
+        Extension("pycoordinates.tetrahedron", ["cython/tetrahedron.pyx"]),
+    ]),
 )
