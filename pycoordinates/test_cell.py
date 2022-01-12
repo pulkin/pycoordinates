@@ -300,6 +300,33 @@ class CellTest(TestCase):
         with self.assertRaises(ValueError):
             self.cell.distances(((0, 1, 2), (1, 2, 3)), ((2, 3, 4), (3, 4, 0)))
 
+    def test_distances_2(self):
+        d = np.linalg.norm(self.cell.vectors[:2].sum(axis=0))
+        h = np.linalg.norm(self.cell.vectors[2])
+
+        def _s(a, b):
+            return (a ** 2 + b ** 2) ** .5
+
+        testing.assert_allclose(
+            self.cell.distances(other=self.cell.copy(coordinates=self.cell.coordinates + 0.01)),
+            [[0.01 * _s(d, h), _s(d * (1./3 + 0.01), h * (.5 + 0.01))], [_s(d * (1./3 - 0.01), h * (.5 - 0.01)), 0.01 * _s(d, h)]],
+        )
+
+    def test_distances_sparse_0(self):
+        d = np.linalg.norm(self.cell.vectors.sum(axis=0))
+        distance_matrix = self.cell.distances(cutoff=0.1, other=self.cell.copy(coordinates=self.cell.coordinates + 0.01))
+        assert distance_matrix.nnz == 2
+        testing.assert_allclose(distance_matrix.todense(), d * 0.01 * np.eye(2))
+
+    def test_centered(self):
+        centered = self.cell.centered()
+        testing.assert_equal(centered.vectors, self.cell.vectors)
+        testing.assert_allclose(centered.coordinates, [
+            (1./3, 1./3, .25),
+            (2./3, 2./3, .75),
+        ])
+        testing.assert_equal(centered.values, self.cell.values)
+
     def test_isolated2_0(self):
         gap = 1e-10
         iso = self.cell2.isolated2(gap)
