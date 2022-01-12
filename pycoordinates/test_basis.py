@@ -191,3 +191,16 @@ class TestBasis:
             type="pycoordinates.basis.Basis"
         ))
         assert self.b == Basis.from_state_dict(serialized)
+
+    def test_deserialization_strict(self):
+        serialized = self.b.state_dict()
+        serialized["type"] = "dfttools.types.Basis"
+        with pytest.raises(TypeError):
+            Basis.from_state_dict(serialized, check_type=True)
+        assert self.b == Basis.from_state_dict(serialized)  # warn by default
+
+    def test_deserialization_multiple(self):
+        assert self.b == Basis.from_state_data(self.b.state_dict())
+        assert all(self.b == i for i in Basis.from_state_data((self.b.state_dict(),) * 2))
+        with pytest.raises(TypeError):
+            Basis.from_state_data(object())

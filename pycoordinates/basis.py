@@ -70,7 +70,7 @@ class Identifiable:
         return cls(**data)
 
     @classmethod
-    def from_state_data(cls, data: Union[list, dict]) -> Union[list, Identifiable]:
+    def from_state_data(cls, data: Union[list, tuple, dict]) -> Union[list, Identifiable]:
         """
         Restores the object or multiple objects from state dict data.
 
@@ -85,10 +85,10 @@ class Identifiable:
         """
         if isinstance(data, dict):
             return cls.from_state_dict(data)
-        elif isinstance(data, list):
+        elif isinstance(data, (list, tuple)):
             return list(map(cls.from_state_dict, data))
         else:
-            raise ValueError(f"Unknown data type to restore from: {type(data)}")
+            raise TypeError(f"Unknown data type to restore from: {type(data)}")
 
     def copy(self, **kwargs) -> Identifiable:
         """
