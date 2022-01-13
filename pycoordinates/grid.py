@@ -494,10 +494,12 @@ class Grid(Basis):
         if len(self.vectors) != 3:
             raise ValueError("The tetrahedron density method is implemented only for 3D grids")
         if resolved and weights is not None:
-            raise NotImplemented()
+            raise NotImplemented("resolved=True with weights not implemented")
 
         points = np.asanyarray(points, dtype=np.float64)
         values = np.reshape(self.values, self.values.shape[:3] + (-1,))
+        if weights is not None:
+            weights = np.reshape(weights, values.shape)
         val_min = np.min(values, axis=(0, 1, 2))
         val_max = np.max(values, axis=(0, 1, 2))
         bottom = (val_max < points.min()).sum()
@@ -505,19 +507,18 @@ class Grid(Basis):
 
         # Optimize size
         values = values[..., bottom:top]
+        if weights is not None:
+            weights = weights[..., bottom:top]
 
         if resolved:
             return self.__class__(self, self.coordinates, compute_density_resolved(
-                self.vectors, self.cartesian(), self.values, self.volume, points).reshape(values.shape + points.shape))
+                self.vectors, self.cartesian(), values, self.volume, points).reshape(values.shape + points.shape))
 
         else:
             if weights is None:
-                weights = np.ones(self.values.shape, dtype=np.float64)
-
-            if values.shape != weights.shape:
-                raise ValueError(f"values.shape = {values.shape} != weights.shape = {weights.shape}")
+                weights = np.ones_like(values)
 
             else:
                 weights = np.asanyarray(weights, dtype=np.float64)
                 weights = np.reshape(weights, weights.shape[:3] + (-1,))[..., bottom:top]
-            return compute_density(self.vectors, self.cartesian(), self.values, self.volume, points, weights)
+            return compute_density(self.vectors, self.cartesian(), values, self.volume, points, weights)
