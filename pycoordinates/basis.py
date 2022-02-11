@@ -92,7 +92,8 @@ class Identifiable:
 
     def copy(self, **kwargs) -> Identifiable:
         """
-        Computes a copy.
+        Computes a copy with, optionally, some fields
+        replaced.
 
         Parameters
         ----------

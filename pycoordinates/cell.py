@@ -5,11 +5,12 @@ from . import grid
 from .util import roarray, input_as_list, compute_angles, qhull_interpolation_driver, derived_from, _piece2bounds
 from .attrs import check_vectors_inv, convert_vectors_inv, convert_coordinates, check_coordinates, convert_values,\
     check_values
+from .tetrahedron2 import compute_density_from_triangulation, compute_volumes
 
 import numpy as np
 from numpy import ndarray
 from scipy.sparse import csr_matrix
-from scipy.spatial import KDTree
+from scipy.spatial import KDTree, Delaunay
 from attr import attrs, attrib
 
 from typing import Union
@@ -110,6 +111,10 @@ class Cell(Basis):
     @cached_property
     def values_lookup(self) -> dict:
         return dict(zip(self.values_uq, np.arange(len(self.values_uq))))
+
+    @cached_property
+    def ndim(self) -> int:
+        return len(self.vectors)
 
     def __eq__(self, other):
         return super().__eq__(other) and np.array_equal(self.coordinates, other.coordinates) and \
@@ -720,3 +725,73 @@ class Cell(Basis):
 
         # Interpolate
         return self.__class__(self, points, derived_from(driver(data_points, data_values, points_i, **kwargs), self.values))
+
+    def tetrahedron_density(self, points: ndarray, resolved: bool = False, weights: ndarray = None,
+                            joggle_eps: float = 1e-5) -> Union[ndarray, Cell]:
+        """
+        Computes the density of points' values (states).
+        Modified tetrahedron method from PRB 49, 16223 by E. Blochl et al.
+        3D only.
+
+        Parameters
+        ----------
+        points
+            Values to calculate density at.
+        resolved
+            If True, returns a higher-dimensional tensor with spatially-
+            and index-resolved density. The dimensions of the returned
+            array are `self.values.shape + points.shape`.
+        weights
+            Assigns weights to points before computing the density.
+            Only for `resolved=False`.
+        joggle_eps
+            The amplitude of random displacements for breaking coordinate
+            symmetries.
+
+        Returns
+        -------
+        For `resolved=False` returns a 1D array with the density.
+        For `resolved=True` returns the corresponding cell with
+        values being the spatially-resolved density.
+        """
+        assert self.ndim == 3
+        assert not resolved
+
+        # make a supercell to include the periodic environment
+        self_ = self.copy(values=np.empty((self.size, 0)))
+        self_j = self_.copy(coordinates=self.coordinates + joggle_eps * (np.random.rand(*self.coordinates.shape) - 0.5))
+        repeats = (3,) * self.ndim
+        self_images = self_.repeated(repeats)
+        self_images_j = self_j.repeated(repeats)
+
+        values = self.values.reshape(self.size, -1)  # flattens
+        offset = ((3 ** self.ndim - 1) // 2)
+
+        tri = Delaunay(self_images_j.coordinates).simplices
+        tri_weights = np.abs(compute_volumes(tri, self_images.cartesian)) / self.volume
+        tri_simplices_sc = tri // self.size
+        tri_simplices_inside = tri_simplices_sc == offset
+
+        def _unique(a):
+            mx = (a[..., :, None] == a[..., None, :]).sum(axis=(-1, -2))
+            nan = float("nan")
+            lookup = np.full(17, nan)
+            lookup[4] = 4
+            lookup[6] = 3
+            lookup[8] = lookup[10] = 2
+            lookup[16] = 1
+            return lookup[mx]
+
+        tri_simplices_nreplica = _unique(tri_simplices_sc)
+        tri_simplices_inside_any = np.any(tri_simplices_inside, axis=1)
+
+        tri = tri % self.size
+
+        result = compute_density_from_triangulation(tri, values, np.asanyarray(points))
+        result[~tri_simplices_inside_any, :] = 0  # outside simplices
+        result /= tri_simplices_nreplica[:, None]  # boundary simplices
+        result *= tri_weights[:, None]
+
+        if weights is not None:
+            result *= weights[tri]
+        return result.sum(axis=0)
