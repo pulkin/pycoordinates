@@ -197,6 +197,10 @@ class Basis(Identifiable):
         return Basis([[0, a, a], [a, 0, a], [a, a, 0]], **kwargs)
 
     @cached_property
+    def ndim(self) -> int:
+        return len(self.vectors)
+
+    @cached_property
     def vectors_inv(self) -> ndarray:
         if self._vectors_inv is not None:
             return self._vectors_inv

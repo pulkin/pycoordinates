@@ -23,7 +23,6 @@ setup(
     long_description_content_type="text/markdown",
     install_requires=requirements,
     ext_modules=cythonize([
-        Extension("pycoordinates.tetrahedron", ["cython/tetrahedron.pyx"], include_dirs=[get_include()]),
         Extension("pycoordinates.tetrahedron2", ["cython/tetrahedron2.pyx"], include_dirs=[get_include()]),
     ]),
 )

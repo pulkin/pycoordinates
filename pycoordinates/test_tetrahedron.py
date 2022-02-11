@@ -1,6 +1,5 @@
 import numpy as np
 from numpy import testing
-from unittest import TestCase
 import pytest
 
 from .basis import Basis
@@ -18,25 +17,24 @@ cell = grid.as_cell()
 
 
 @pytest.mark.parametrize("grid", (grid, cell))
-def test_td_0(grid):
+def test_default(grid):
     d = grid.tetrahedron_density((-.1, 0, .1, .2))
     testing.assert_allclose(d, (0, 0, 2 * np.pi * 0.1, 2 * np.pi * 0.2), rtol=1e-2)
 
 
-def test_td_1():
+def test_resolved():
     d = grid.tetrahedron_density((-.1, 0, .1, .2), resolved=True)
-    testing.assert_equal(d.values.shape, (50, 50, 1, 1, 4))
-    testing.assert_allclose(d.values.sum(axis=0).sum(axis=0).sum(axis=0)[0],
-                            (0, 0, 2 * np.pi * 0.1, 2 * np.pi * 0.2), rtol=1e-2)
+    testing.assert_equal(d.values.shape, (50, 50, 1, 4))
+    testing.assert_allclose(d.values.sum(axis=(0, 1, 2)), (0, 0, 2 * np.pi * 0.1, 2 * np.pi * 0.2), rtol=1e-2)
 
 
 @pytest.mark.parametrize("grid", (grid, cell))
-def test_td_2(grid):
+def test_weighted(grid):
     d = grid.tetrahedron_density((-.1, 0, .1, .2), weights=np.ones_like(grid.values) * .5)
     testing.assert_allclose(d, (0, 0, np.pi * 0.1, np.pi * 0.2), rtol=1e-2)
 
 
-def test_td_fail_0():
+def test_fail():
     g = grid.copy(
         vectors=grid.vectors[:2, :2],
         coordinates=grid.coordinates[:2],

@@ -112,10 +112,6 @@ class Cell(Basis):
     def values_lookup(self) -> dict:
         return dict(zip(self.values_uq, np.arange(len(self.values_uq))))
 
-    @cached_property
-    def ndim(self) -> int:
-        return len(self.vectors)
-
     def __eq__(self, other):
         return super().__eq__(other) and np.array_equal(self.coordinates, other.coordinates) and \
                np.array_equal(self.values, other.values)
@@ -727,7 +723,7 @@ class Cell(Basis):
         return self.__class__(self, points, derived_from(driver(data_points, data_values, points_i, **kwargs), self.values))
 
     def tetrahedron_density(self, points: ndarray, resolved: bool = False, weights: ndarray = None,
-                            joggle_eps: float = 1e-5) -> Union[ndarray, Cell]:
+                            joggle_eps: float = 1e-5) -> Union[ndarray, tuple]:
         """
         Computes the density of points' values (states).
         Modified tetrahedron method from PRB 49, 16223 by E. Blochl et al.
@@ -750,12 +746,12 @@ class Cell(Basis):
 
         Returns
         -------
-        For `resolved=False` returns a 1D array with the density.
-        For `resolved=True` returns the corresponding cell with
-        values being the spatially-resolved density.
+        density
+            A 1D or a multidimensional density array.
+        triangulation
+            For ``resolved=True`` return a two-tuple (coordinates, simplices) with triangulation.
         """
         assert self.ndim == 3
-        assert not resolved
 
         # make a supercell to include the periodic environment
         self_ = self.copy(values=np.empty((self.size, 0)))
@@ -765,12 +761,18 @@ class Cell(Basis):
         self_images_j = self_j.repeated(repeats)
 
         values = self.values.reshape(self.size, -1)  # flattens
-        offset = ((3 ** self.ndim - 1) // 2)
+        offset = (3 ** self.ndim - 1) // 2
 
         tri = Delaunay(self_images_j.coordinates).simplices
-        tri_weights = np.abs(compute_volumes(tri, self_images.cartesian)) / self.volume
+
+        # Take only inside/boundary simplices
         tri_simplices_sc = tri // self.size
-        tri_simplices_inside = tri_simplices_sc == offset
+        tri_simplices_inside_any = np.any(tri_simplices_sc == offset, axis=1)
+        tri = tri[tri_simplices_inside_any, :]
+        tri_simplices_sc = tri_simplices_sc[tri_simplices_inside_any, :]
+        del tri_simplices_inside_any
+
+        tri_weights = np.abs(compute_volumes(tri, self_images.cartesian)) / self.volume
 
         def _unique(a):
             mx = (a[..., :, None] == a[..., None, :]).sum(axis=(-1, -2))
@@ -783,15 +785,19 @@ class Cell(Basis):
             return lookup[mx]
 
         tri_simplices_nreplica = _unique(tri_simplices_sc)
-        tri_simplices_inside_any = np.any(tri_simplices_inside, axis=1)
 
-        tri = tri % self.size
+        tri_ = tri % self.size
 
-        result = compute_density_from_triangulation(tri, values, np.asanyarray(points))
-        result[~tri_simplices_inside_any, :] = 0  # outside simplices
+        result = compute_density_from_triangulation(tri_, values, np.asanyarray(points))
+        if weights is not None:
+            weights = np.mean(weights.reshape(values.shape)[tri_, :], axis=1)
+            result *= weights[:, :, None]
+        result = result.sum(axis=1)  # over bands
+
         result /= tri_simplices_nreplica[:, None]  # boundary simplices
         result *= tri_weights[:, None]
 
-        if weights is not None:
-            result *= weights[tri]
-        return result.sum(axis=0)
+        if resolved:
+            return result, (self_images.cartesian - self.vectors.sum(axis=0), tri)
+        else:
+            return result.sum(axis=0)

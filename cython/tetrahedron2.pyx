@@ -72,7 +72,7 @@ def compute_density_from_triangulation(
         const int[:, ::1] triangulation,  # [n_tri, 4]
         const double[:, ::1] bands,  # [n_pts, n_bands]
         const double[::1] target,  # [n_target]
-):  # [n_tri, n_target]
+):  # [n_tri, n_bands, n_target]
     assert triangulation.shape[1] == 4
 
     cdef int n_tri = triangulation.shape[0]
@@ -82,7 +82,7 @@ def compute_density_from_triangulation(
     cdef int t1, t2, t3, t4, trix, bix, i
     cdef double e, e1, e2, e3, e4
 
-    cdef double[:, ::1] result = numpy.zeros((n_tri, n_target))
+    cdef double[:, :, ::1] result = numpy.zeros((n_tri, n_bands, n_target))
 
     for trix in range(n_tri):
         t1 = triangulation[trix, 0]
@@ -99,5 +99,5 @@ def compute_density_from_triangulation(
 
             for i in range(n_target):
                 e = target[i]
-                result[trix, i] += _density(e, e1, e2, e3, e4)  # sums over bands
+                result[trix, bix, i] = _density(e, e1, e2, e3, e4)
     return numpy.asarray(result)

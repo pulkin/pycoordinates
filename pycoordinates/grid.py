@@ -5,7 +5,6 @@ from . import cell
 from .util import input_as_list, derived_from, grid_coordinates, generate_path, _piece2bounds
 from .attrs import check_vectors_inv, convert_vectors_inv, convert_grid, check_grid, convert_grid_values,\
     check_grid_values
-from .tetrahedron import compute_density, compute_density_resolved
 
 import numpy as np
 from numpy import ndarray
@@ -500,25 +499,21 @@ class Grid(Basis):
         values = np.reshape(self.values, self.values.shape[:3] + (-1,))
         if weights is not None:
             weights = np.reshape(weights, values.shape)
-        val_min = np.min(values, axis=(0, 1, 2))
-        val_max = np.max(values, axis=(0, 1, 2))
-        bottom = (val_max < points.min()).sum()
-        top = (val_min < points.max()).sum()
 
-        # Optimize size
-        values = values[..., bottom:top]
-        if weights is not None:
-            weights = weights[..., bottom:top]
+        result = self.copy(values=values).as_cell().tetrahedron_density(points, resolved=resolved, weights=weights)
 
         if resolved:
-            return self.__class__(self, self.coordinates, compute_density_resolved(
-                self.vectors, self.cartesian(), values, self.volume, points).reshape(values.shape + points.shape))
+            result, (_, tri) = result
 
+            tri = np.unravel_index(tri, np.array(self.grid_shape) * 3)
+            tri = np.min(tri, axis=-1)
+            tri = tri % np.array(self.grid_shape)[:, None]
+            tri = np.ravel_multi_index(tuple(tri), self.grid_shape)
+
+            result_grid = np.zeros((self.size, result.shape[-1]))
+            np.add.at(result_grid, tri, result)
+            result_grid.shape = self.grid_shape + points.shape
+
+            return self.__class__(self, self.coordinates, result_grid)
         else:
-            if weights is None:
-                weights = np.ones_like(values)
-
-            else:
-                weights = np.asanyarray(weights, dtype=np.float64)
-                weights = np.reshape(weights, weights.shape[:3] + (-1,))[..., bottom:top]
-            return compute_density(self.vectors, self.cartesian(), values, self.volume, points, weights)
+            return result
