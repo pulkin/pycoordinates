@@ -5,6 +5,7 @@ from . import cell
 from .util import input_as_list, derived_from, grid_coordinates, generate_path, _piece2bounds
 from .attrs import check_vectors_inv, convert_vectors_inv, convert_grid, check_grid, convert_grid_values,\
     check_grid_values
+from .triangulation import unique_counts, cube_tetrahedrons, triangulation_result, simplex_volumes
 
 import numpy as np
 from numpy import ndarray
@@ -466,6 +467,53 @@ class Grid(Basis):
         """
         return self.interpolate_to_cell(generate_path(nodes, n, skip_segments=skip_segments), **kwargs)
 
+    def compute_triangulation(self):
+        """
+        Computes Delaunay triangulation.
+
+        Returns
+        -------
+        result
+            The resulting triangulation embedded in images of this cell.
+        """
+        grid_shape = np.array(self.grid_shape)
+        grid_enum = grid_coordinates(tuple(np.arange(-1, i) for i in grid_shape))  # [x, y, z, 3] integer grid points
+        cube_tetrahedrons_ = cube_tetrahedrons[self.ndim]
+        tri = grid_enum[..., None, None, :] + np.expand_dims(cube_tetrahedrons_, axis=tuple(range(self.ndim)))  # [x y z 6 4 3] tetrahedrons
+        tri = tri.reshape(-1, *cube_tetrahedrons_.shape[1:])  # [t 4 3] squeeze tetrahedron dims
+        tri += grid_shape[None, None, :]  # shift into the center of a 3x3x3 block of images
+        tri_big = tri // grid_shape[None, None, :]  # big (image) index
+        tri_little = tri % grid_shape[None, None, :]  # little (image) index
+
+        def _ravel(_a: ndarray, shape) -> ndarray:
+            return np.ravel_multi_index(tuple(
+                _a[..., i]
+                for i in range(_a.shape[-1])
+            ), shape).astype(np.int32)
+
+        tri = _ravel(tri, grid_shape * 3)
+        tri_big = _ravel(tri_big, [3] * self.ndim)
+
+        offset = (3 ** self.ndim - 1) // 2
+
+        # make a supercell to include the periodic environment
+        self_ = self.copy(values=np.empty((*self.grid_shape, 0)))
+        repeats = (3,) * self.ndim
+        self_images = self_.repeated(repeats)
+
+        points = self_images.cartesian().reshape(self_images.size, -1)
+        weights = np.abs(simplex_volumes(points[tri])) / unique_counts(tri_big) / self.volume * np.any(tri_big == offset, axis=1)
+
+        grid_enum_full = grid_coordinates(tuple(np.arange(i) for i in grid_shape * 3)).reshape(-1, self.ndim)
+        grid_enum_full = grid_enum_full % grid_shape[None, :]
+        grid_enum_full = _ravel(grid_enum_full, grid_shape)
+        return triangulation_result(
+            points=points,
+            points_i=grid_enum_full,
+            simplices=tri,
+            weights=weights,
+        )
+
     def tetrahedron_density(self, points: ndarray, resolved: bool = False, weights: ndarray = None) -> Union[ndarray, Grid]:
         """
         Computes the density of points' values (states).
@@ -500,12 +548,13 @@ class Grid(Basis):
         if weights is not None:
             weights = np.reshape(weights, values.shape)
 
-        result = self.copy(values=values).as_cell().tetrahedron_density(points, resolved=resolved, weights=weights)
+        tri = self.compute_triangulation()
+        result = self.copy(values=values).as_cell().tetrahedron_density(points, resolved=resolved, weights=weights, tri=tri)
 
         if resolved:
-            result, (_, tri) = result
+            result, tri = result
 
-            tri = np.unravel_index(tri, np.array(self.grid_shape) * 3)
+            tri = np.unravel_index(tri.simplices, np.array(self.grid_shape) * 3)
             tri = np.min(tri, axis=-1)
             tri = tri % np.array(self.grid_shape)[:, None]
             tri = np.ravel_multi_index(tuple(tri), self.grid_shape)

@@ -5,7 +5,8 @@ from . import grid
 from .util import roarray, input_as_list, compute_angles, qhull_interpolation_driver, derived_from, _piece2bounds
 from .attrs import check_vectors_inv, convert_vectors_inv, convert_coordinates, check_coordinates, convert_values,\
     check_values
-from .tetrahedron2 import compute_density_from_triangulation, compute_volumes
+from .tetrahedron2 import compute_density_from_triangulation
+from .triangulation import unique_counts, triangulation_result, simplex_volumes
 
 import numpy as np
 from numpy import ndarray
@@ -722,8 +723,52 @@ class Cell(Basis):
         # Interpolate
         return self.__class__(self, points, derived_from(driver(data_points, data_values, points_i, **kwargs), self.values))
 
+    def compute_triangulation(self, joggle_eps: float = 1e-5):
+        """
+        Computes Delaunay triangulation.
+
+        Parameters
+        ----------
+        joggle_eps
+            The amplitude of random displacements for breaking possible
+            coordinate symmetries.
+
+        Returns
+        -------
+        result
+            The resulting triangulation embedded in images of this cell.
+        """
+        # make a supercell to include the periodic environment
+        self_ = self.copy(values=np.empty((self.size, 0)))
+        repeats = (3,) * self.ndim
+        self_images = self_.repeated(repeats)
+
+        # joggle and compute Delaunay
+        joggle_v = joggle_eps * (np.random.rand(*self.vectors.shape) - 0.5)
+        joggle_c = joggle_eps * (np.random.rand(*self.coordinates.shape) - 0.5)
+        self_j = self_.copy(vectors=self.vectors + joggle_v, coordinates=self.coordinates + joggle_c)
+        self_images_j = self_j.repeated(repeats)
+        tri = Delaunay(self_images_j.cartesian).simplices
+
+        # Take only inside/boundary simplices
+        offset = (3 ** self.ndim - 1) // 2
+        tri_simplices_sc = tri // self.size
+        tri_simplices_inside_any = np.any(tri_simplices_sc == offset, axis=1)
+        tri = tri[tri_simplices_inside_any, :]
+        tri_simplices_sc = tri_simplices_sc[tri_simplices_inside_any, :]
+        del tri_simplices_inside_any
+
+        weights = simplex_volumes(self_images.cartesian[tri, :]) / unique_counts(tri_simplices_sc) / self.volume
+
+        return triangulation_result(
+            points=self_images.cartesian,
+            points_i=(np.arange(len(self_images.cartesian)) % self.size).astype(np.int32),
+            simplices=tri,
+            weights=weights,
+        )
+
     def tetrahedron_density(self, points: ndarray, resolved: bool = False, weights: ndarray = None,
-                            joggle_eps: float = 1e-5) -> Union[ndarray, tuple]:
+                            joggle_eps: float = 1e-5, tri: ndarray = None) -> Union[ndarray, tuple]:
         """
         Computes the density of points' values (states).
         Modified tetrahedron method from PRB 49, 16223 by E. Blochl et al.
@@ -743,61 +788,31 @@ class Cell(Basis):
         joggle_eps
             The amplitude of random displacements for breaking coordinate
             symmetries.
+        tri
+            Pre-computed triangulation. Overrides all triangulation-related
+            properties.
 
         Returns
         -------
         density
             A 1D or a multidimensional density array.
         triangulation
-            For ``resolved=True`` return a two-tuple (coordinates, simplices) with triangulation.
+            For ``resolved=True`` return triangulation.
         """
         assert self.ndim == 3
 
-        # make a supercell to include the periodic environment
-        self_ = self.copy(values=np.empty((self.size, 0)))
-        self_j = self_.copy(coordinates=self.coordinates + joggle_eps * (np.random.rand(*self.coordinates.shape) - 0.5))
-        repeats = (3,) * self.ndim
-        self_images = self_.repeated(repeats)
-        self_images_j = self_j.repeated(repeats)
-
+        if tri is None:
+            tri = self.compute_triangulation(joggle_eps=joggle_eps)
         values = self.values.reshape(self.size, -1)  # flattens
-        offset = (3 ** self.ndim - 1) // 2
+        simplices_here = tri.points_i[tri.simplices]
+        result = compute_density_from_triangulation(simplices_here, values, np.asanyarray(points))
 
-        tri = Delaunay(self_images_j.coordinates).simplices
-
-        # Take only inside/boundary simplices
-        tri_simplices_sc = tri // self.size
-        tri_simplices_inside_any = np.any(tri_simplices_sc == offset, axis=1)
-        tri = tri[tri_simplices_inside_any, :]
-        tri_simplices_sc = tri_simplices_sc[tri_simplices_inside_any, :]
-        del tri_simplices_inside_any
-
-        tri_weights = np.abs(compute_volumes(tri, self_images.cartesian)) / self.volume
-
-        def _unique(a):
-            mx = (a[..., :, None] == a[..., None, :]).sum(axis=(-1, -2))
-            nan = float("nan")
-            lookup = np.full(17, nan)
-            lookup[4] = 4
-            lookup[6] = 3
-            lookup[8] = lookup[10] = 2
-            lookup[16] = 1
-            return lookup[mx]
-
-        tri_simplices_nreplica = _unique(tri_simplices_sc)
-
-        tri_ = tri % self.size
-
-        result = compute_density_from_triangulation(tri_, values, np.asanyarray(points))
         if weights is not None:
-            weights = np.mean(weights.reshape(values.shape)[tri_, :], axis=1)
+            weights = np.mean(weights.reshape(values.shape)[simplices_here, :], axis=1)
             result *= weights[:, :, None]
-        result = result.sum(axis=1)  # over bands
-
-        result /= tri_simplices_nreplica[:, None]  # boundary simplices
-        result *= tri_weights[:, None]
+        result = result.sum(axis=1) * tri.weights[:, None]  # over bands
 
         if resolved:
-            return result, (self_images.cartesian - self.vectors.sum(axis=0), tri)
+            return result, tri
         else:
             return result.sum(axis=0)
