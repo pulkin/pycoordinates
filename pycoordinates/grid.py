@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from .basis import Basis, _gaps2x
 from . import cell
-from .util import input_as_list, derived_from, grid_coordinates, generate_path, _piece2bounds
+from .util import input_as_list, derived_from, grid_coordinates, generate_path, _piece2bounds, roarray
 from .attrs import check_vectors_inv, convert_vectors_inv, convert_grid, check_grid, convert_grid_values,\
     check_grid_values
 from .triangulation import unique_counts, cube_tetrahedrons, triangulation_result, simplex_volumes
@@ -32,29 +32,17 @@ class Grid(Basis):
     def size(self) -> int:
         return int(np.prod(self.grid_shape))
 
+    @cached_property
+    def explicit_coordinates(self) -> np.ndarray:
+        return roarray(grid_coordinates(self.coordinates))
+
+    @cached_property
+    def cartesian(self) -> np.ndarray:
+        return roarray(self.transform_to_cartesian(self.explicit_coordinates))
+
     def __eq__(self, other):
         return super().__eq__(other) and all(np.array_equal(*i) for i in zip(self.coordinates, other.coordinates)) and \
                np.array_equal(self.values, other.values)
-
-    def explicit_coordinates(self) -> np.ndarray:  # TODO: rename to get_grid_coordinates
-        """
-        Prepares an (N + 1)D array with grid coordinates.
-
-        Returns
-        -------
-        A multidimensional coordinate array.
-        """
-        return grid_coordinates(self.coordinates)
-
-    def cartesian(self) -> np.ndarray:  # TODO: rename to get_grid_cartesian
-        """
-        Computes cartesian coordinates of points in this grid.
-
-        Returns
-        -------
-        A multidimensional coordinate array.
-        """
-        return self.transform_to_cartesian(self.explicit_coordinates())
 
     def normalized(self, left: float = 0, sort: bool = False) -> Grid:
         """
@@ -350,7 +338,7 @@ class Grid(Basis):
         A new cell including points from this grid.
         """
         v = self.values.reshape((-1,) + self.values.shape[len(self.coordinates):])
-        return cell.Cell(self, self.explicit_coordinates().reshape(-1, len(self.vectors)), v, meta=self.meta)
+        return cell.Cell(self, self.explicit_coordinates.reshape(-1, len(self.vectors)), v, meta=self.meta)
 
     def interpolate_to_array(self, points: ndarray, driver=None, periodic: bool = True, **kwargs) -> ndarray:
         """
@@ -501,7 +489,7 @@ class Grid(Basis):
         repeats = (3,) * self.ndim
         self_images = self_.repeated(repeats)
 
-        points = self_images.cartesian().reshape(self_images.size, -1)
+        points = self_images.cartesian.reshape(self_images.size, -1)
         weights = np.abs(simplex_volumes(points[tri])) / unique_counts(tri_big) / self.volume * np.any(tri_big == offset, axis=1)
 
         grid_enum_full = grid_coordinates(tuple(np.arange(i) for i in grid_shape * 3)).reshape(-1, self.ndim)

@@ -95,14 +95,14 @@ class GridTest(TestCase):
         assert self.grid.size == 24
 
     def test_explicit_coordinates(self):
-        c = self.grid.explicit_coordinates()
+        c = self.grid.explicit_coordinates
         assert len(c.shape) == 4
         assert (c[1, :, :, 0] == 0.5).all()
         assert (c[:, 1, :, 1] == 1. / 3).all()
         assert (c[:, :, 1, 2] == 1. / 4).all()
 
     def test_cartesian(self):
-        c = self.grid.cartesian()
+        c = self.grid.cartesian
         testing.assert_allclose(c[0, 0, 0], (0, 0, 0))
         testing.assert_allclose(c[1, 2, 3], (1. / 2 * 1, 2. / 3 * 2, 3. / 4 * 3))
 

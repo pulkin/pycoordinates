@@ -4,6 +4,7 @@ import pytest
 
 from .basis import Basis
 from .grid import Grid
+from .cell import Cell
 
 
 def _parabolic(n, d2=False):
@@ -22,9 +23,10 @@ grid50 = _parabolic(50)
 cell50 = grid50.as_cell()
 grid50_2d = _parabolic(1, True)
 cell50_2d = grid50_2d.as_cell()
+cell = Cell(Basis.orthorhombic((1, 1)), [[.2, .3], [.6, .1], [0, .5]], [1, 2, 3])
 
 
-@pytest.mark.parametrize("grid", (grid1, cell1, grid50, cell50, grid50_2d, cell50_2d))
+@pytest.mark.parametrize("grid", (grid1, cell1, grid50, cell50, grid50_2d, cell50_2d, cell))
 def test_triangulation(grid):
     tri = grid.compute_triangulation()
     testing.assert_allclose(tri.weights.sum(), 1)
