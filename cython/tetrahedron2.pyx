@@ -3,6 +3,7 @@ import numpy
 cimport numpy, cython
 
 
+@cython.cdivision(True)
 cdef double _density(double e, double e1, double e2, double e3, double e4):
     if e1 < e <= e2:
         return 3 * (e - e1) * (e - e1) / (e2 - e1) / (e3 - e1) / (e4 - e1)
@@ -32,6 +33,7 @@ cdef inline void sort4(double* p0, double* p1, double* p2, double* p3):
     sort2(p1, p2)
 
 
+@cython.wraparound(False)
 def compute_density_from_triangulation(
         const int[:, ::1] triangulation,  # [n_tri, 4]
         const double[::1] tri_weights,  # [n_tri]
@@ -73,7 +75,10 @@ def compute_density_from_triangulation(
             sort4(&e1, &e2, &e3, &e4)
 
             if band_weights_buffer != None:
-                w *= (band_weights[t1, bix] + band_weights[t2, bix] + band_weights[t3, bix] + band_weights[t4, bix]) / 4
+                w *= (band_weights_buffer[t1, bix] +
+                      band_weights_buffer[t2, bix] +
+                      band_weights_buffer[t3, bix] +
+                      band_weights_buffer[t4, bix]) / 4
 
             for i in range(n_target):
                 d = _density(target[i], e1, e2, e3, e4) * w
