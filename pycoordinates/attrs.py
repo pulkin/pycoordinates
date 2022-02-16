@@ -71,7 +71,7 @@ def check_grid(instance, attribute: str, coordinates: tuple):
 
 
 def convert_grid_values(values: Union[ndarray, list, tuple, str]) -> ndarray:
-    return ro_float_array_copy(values)
+    return roarray_copy(values)
 
 
 def check_grid_values(instance, attribute: str, values: ndarray):

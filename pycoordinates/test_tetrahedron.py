@@ -21,7 +21,7 @@ grid1 = _parabolic(1)
 cell1 = grid1.as_cell()
 grid50 = _parabolic(50)
 cell50 = grid50.as_cell()
-grid50_2d = _parabolic(1, True)
+grid50_2d = _parabolic(50, True)
 cell50_2d = grid50_2d.as_cell()
 cell = Cell(Basis.orthorhombic((1, 1)), [[.2, .3], [.6, .1], [0, .5]], [1, 2, 3])
 

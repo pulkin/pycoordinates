@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from .basis import Basis, _gaps2x
 from . import cell
-from .util import input_as_list, derived_from, grid_coordinates, generate_path, _piece2bounds, roarray
+from .util import input_as_list, derived_from, grid_coordinates, generate_path, _piece2bounds, roarray, ravel_grid
 from .attrs import check_vectors_inv, convert_vectors_inv, convert_grid, check_grid, convert_grid_values,\
     check_grid_values
-from .triangulation import unique_counts, cube_tetrahedrons, triangulation_result, simplex_volumes
+from .triangulation import unique_counts, cube_tetrahedrons, triangulation_result, simplex_volumes, compute_band_density
 
 import numpy as np
 from numpy import ndarray
@@ -455,6 +455,34 @@ class Grid(Basis):
         """
         return self.interpolate_to_cell(generate_path(nodes, n, skip_segments=skip_segments), **kwargs)
 
+    def compute_embedding(self) -> Grid:
+        """
+        Computes embedding of this grid.
+        Values are replaced by an array of indices enumerating cell points.
+        `values[..., :self.ndim]` points to entries in this cell and `values[..., self.ndim]` enumerates
+        cell images with 0 being the middle cell embedded.
+
+        Returns
+        -------
+        result
+            The resulting grid.
+        """
+        grid_shape = np.array(self.grid_shape)
+        grid_shape_ = np.expand_dims(grid_shape, axis=tuple(range(self.ndim)))
+
+        grid_points = tuple(np.arange(-1, i + 1, dtype=np.int32) for i in grid_shape)
+        coordinates = tuple(
+            c[g % len(c)] + (g // len(c))
+            for c, g in zip(self.coordinates, grid_points)
+        )
+        values_lo = grid_coordinates(grid_points)  # [x, y, z, 3] integer grid points
+        values_hi = values_lo // grid_shape_  # [x, y, z, 3] supercell index
+        values_hi = ravel_grid(values_hi + 1, [3] * self.ndim) - (3 ** self.ndim - 1) // 2
+        values_lo = values_lo % grid_shape_  # [x, y, z, 3] points index
+        values = np.concatenate([values_lo, values_hi[..., None]], axis=-1)
+
+        return self.copy(coordinates=coordinates, values=values)
+
     def compute_triangulation(self):
         """
         Computes Delaunay triangulation.
@@ -464,40 +492,30 @@ class Grid(Basis):
         result
             The resulting triangulation embedded in images of this cell.
         """
-        grid_shape = np.array(self.grid_shape)
-        grid_enum = grid_coordinates(tuple(np.arange(-1, i) for i in grid_shape))  # [x, y, z, 3] integer grid points
-        cube_tetrahedrons_ = cube_tetrahedrons[self.ndim]
-        tri = grid_enum[..., None, None, :] + np.expand_dims(cube_tetrahedrons_, axis=tuple(range(self.ndim)))  # [x y z 6 4 3] tetrahedrons
+        embedding = self.compute_embedding()
+        ix_lo = embedding.values[..., :-1]
+        ix_hi = embedding.values[..., -1]
+        ix_lo_ = ravel_grid(ix_lo.reshape(embedding.size, embedding.ndim), self.grid_shape)
+        ix_hi_ = ix_hi.reshape(embedding.size)
+
+        cube_tetrahedrons_ = cube_tetrahedrons[embedding.ndim]
+
+        grid_shape = np.array(embedding.grid_shape)
+        grid_enum = grid_coordinates(tuple(np.arange(i - 1) for i in grid_shape))  # [x, y, z, 3] integer grid points
+        tri = grid_enum[..., None, None, :] + np.expand_dims(cube_tetrahedrons_, axis=tuple(range(embedding.ndim)))  # [x y z 6 4 3] tetrahedrons
         tri = tri.reshape(-1, *cube_tetrahedrons_.shape[1:])  # [t 4 3] squeeze tetrahedron dims
-        tri += grid_shape[None, None, :]  # shift into the center of a 3x3x3 block of images
-        tri_big = tri // grid_shape[None, None, :]  # big (image) index
-        tri_little = tri % grid_shape[None, None, :]  # little (image) index
 
-        def _ravel(_a: ndarray, shape) -> ndarray:
-            return np.ravel_multi_index(tuple(
-                _a[..., i]
-                for i in range(_a.shape[-1])
-            ), shape).astype(np.int32)
+        tri = ravel_grid(tri, grid_shape).astype(np.int32)
 
-        tri = _ravel(tri, grid_shape * 3)
-        tri_big = _ravel(tri_big, [3] * self.ndim)
+        points = embedding.cartesian.reshape(embedding.size, embedding.ndim)
+        weights = np.abs(simplex_volumes(points[tri]))
+        ix_hi_tri = ix_hi_[tri]
+        weights /= unique_counts(ix_hi_tri) * embedding.volume
+        weights *= np.any(ix_hi_tri == 0, axis=1)
 
-        offset = (3 ** self.ndim - 1) // 2
-
-        # make a supercell to include the periodic environment
-        self_ = self.copy(values=np.empty((*self.grid_shape, 0)))
-        repeats = (3,) * self.ndim
-        self_images = self_.repeated(repeats)
-
-        points = self_images.cartesian.reshape(self_images.size, -1)
-        weights = np.abs(simplex_volumes(points[tri])) / unique_counts(tri_big) / self.volume * np.any(tri_big == offset, axis=1)
-
-        grid_enum_full = grid_coordinates(tuple(np.arange(i) for i in grid_shape * 3)).reshape(-1, self.ndim)
-        grid_enum_full = grid_enum_full % grid_shape[None, :]
-        grid_enum_full = _ravel(grid_enum_full, grid_shape)
         return triangulation_result(
-            points=points,
-            points_i=grid_enum_full,
+            points=embedding.cartesian.reshape(-1, embedding.ndim),
+            points_i=ix_lo_.astype(np.int32),
             simplices=tri,
             weights=weights,
         )
@@ -532,16 +550,11 @@ class Grid(Basis):
             raise NotImplemented("resolved=True with weights not implemented")
 
         points = np.asanyarray(points, dtype=np.float64)
-        values = np.reshape(self.values, self.values.shape[:3] + (-1,))
-        if weights is not None:
-            weights = np.reshape(weights, values.shape)
-
+        values = np.reshape(self.values, (self.size, -1))
         tri = self.compute_triangulation()
-        result = self.copy(values=values).as_cell().tetrahedron_density(points, resolved=resolved, weights=weights, tri=tri)
+        result = compute_band_density(tri, values, points, weights=weights, resolve_bands=False)
 
         if resolved:
-            result, tri = result
-
             tri = np.unravel_index(tri.simplices, np.array(self.grid_shape) * 3)
             tri = np.min(tri, axis=-1)
             tri = tri % np.array(self.grid_shape)[:, None]
@@ -553,4 +566,4 @@ class Grid(Basis):
 
             return self.__class__(self, self.coordinates, result_grid)
         else:
-            return result
+            return result.sum(axis=0)  # over tetrahedrons

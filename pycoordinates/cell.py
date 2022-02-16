@@ -5,8 +5,7 @@ from . import grid
 from .util import roarray, input_as_list, compute_angles, qhull_interpolation_driver, derived_from, _piece2bounds
 from .attrs import check_vectors_inv, convert_vectors_inv, convert_coordinates, check_coordinates, convert_values,\
     check_values
-from .tetrahedron2 import compute_density_from_triangulation
-from .triangulation import unique_counts, triangulation_result, simplex_volumes
+from .triangulation import unique_counts, triangulation_result, simplex_volumes, compute_band_density
 
 import numpy as np
 from numpy import ndarray
@@ -644,6 +643,34 @@ class Cell(Basis):
         """
         return self.__class__(super().rounded(decimals), np.around(self.coordinates, decimals=decimals), self.values, meta=self.meta)
 
+    def joggled(self, joggle_eps: float = 1e-5, vectors=True):
+        """
+        Breaks possible symmetries in this cell by joggling coordinates and
+        vectors.
+
+        Parameters
+        ----------
+        joggle_eps
+            The amplitude of random displacements for breaking possible
+            coordinate symmetries.
+        vectors
+            If True, adds a random displacement to vectors as well.
+
+        Returns
+        -------
+        result
+            The resulting cell.
+        """
+        joggle_c = joggle_eps * (np.random.rand(*self.coordinates.shape) - 0.5)
+        if vectors:
+            joggle_v = self.vectors_len[:, None] * (np.random.rand(*self.vectors.shape) - 0.5) * joggle_eps
+        else:
+            joggle_v = 0
+        return self.copy(
+            vectors=self.vectors + joggle_v,
+            coordinates=self.coordinates + joggle_c,
+        )
+
     def as_grid(self, fill: float = np.nan) -> grid.Grid:
         """
         Converts this unit cell into a grid.
@@ -723,6 +750,32 @@ class Cell(Basis):
         # Interpolate
         return self.__class__(self, points, derived_from(driver(data_points, data_values, points_i, **kwargs), self.values))
 
+    def compute_embedding(self, size: int = 1) -> Cell:
+        """
+        Computes embedding of this cell.
+        Values are replaced by an array of indices enumerating cell points.
+        `values[:, 0]` points to entries in this cell and `values[:, 1]` enumerates
+        cell images with 0 being the middle cell embedded.
+
+        Parameters
+        ----------
+        size
+            Embedding size in unit cells count.
+
+        Returns
+        -------
+        result
+            The resulting cell.
+        """
+        sc_size = 2 * size + 1
+        sc_offset = (sc_size ** self.ndim - 1) // 2
+        result = self.copy(values=np.empty((self.size, 0))).repeated([sc_size] * self.ndim)
+        values = np.arange(result.size, dtype=np.int32)
+        values_hi = values // self.size - sc_offset
+        values_lo = values % self.size
+        values = np.concatenate([values_lo[:, None], values_hi[:, None]], axis=1)
+        return result.copy(values=values)
+
     def compute_triangulation(self, joggle_eps: float = 1e-5):
         """
         Computes Delaunay triangulation.
@@ -738,31 +791,24 @@ class Cell(Basis):
         result
             The resulting triangulation embedded in images of this cell.
         """
-        # make a supercell to include the periodic environment
-        self_ = self.copy(values=np.empty((self.size, 0)))
-        repeats = (3,) * self.ndim
-        self_images = self_.repeated(repeats)
+        embedding = self.compute_embedding()
+        embedding_j = self.joggled(joggle_eps, vectors=True).compute_embedding()
+        ix_lo = embedding.values[:, 0]
+        ix_hi = embedding.values[:, 1]
 
-        # joggle and compute Delaunay
-        joggle_v = joggle_eps * (np.random.rand(*self.vectors.shape) - 0.5)
-        joggle_c = joggle_eps * (np.random.rand(*self.coordinates.shape) - 0.5)
-        self_j = self_.copy(vectors=self.vectors + joggle_v, coordinates=self.coordinates + joggle_c)
-        self_images_j = self_j.repeated(repeats)
-        tri = Delaunay(self_images_j.cartesian).simplices
+        tri = Delaunay(embedding_j.cartesian).simplices
 
         # Take only inside/boundary simplices
-        offset = (3 ** self.ndim - 1) // 2
-        tri_simplices_sc = tri // self.size
-        tri_simplices_inside_any = np.any(tri_simplices_sc == offset, axis=1)
-        tri = tri[tri_simplices_inside_any, :]
-        tri_simplices_sc = tri_simplices_sc[tri_simplices_inside_any, :]
-        del tri_simplices_inside_any
+        tri_hi = ix_hi[tri]
+        tri_relevant = np.any(tri_hi == 0, axis=1)
+        tri = tri[tri_relevant, :]
+        tri_hi = tri_hi[tri_relevant, :]
 
-        weights = simplex_volumes(self_images.cartesian[tri, :]) / unique_counts(tri_simplices_sc) / self.volume
+        weights = simplex_volumes(embedding.cartesian[tri, :]) / unique_counts(tri_hi) / self.volume
 
         return triangulation_result(
-            points=self_images.cartesian,
-            points_i=(np.arange(len(self_images.cartesian)) % self.size).astype(np.int32),
+            points=embedding.cartesian,
+            points_i=ix_lo,
             simplices=tri,
             weights=weights,
         )
@@ -803,14 +849,9 @@ class Cell(Basis):
 
         if tri is None:
             tri = self.compute_triangulation(joggle_eps=joggle_eps)
+        points = np.asanyarray(points, dtype=np.float64)
         values = self.values.reshape(self.size, -1)  # flattens
-        simplices_here = tri.points_i[tri.simplices]
-        result = compute_density_from_triangulation(simplices_here, values, np.asanyarray(points))
-
-        if weights is not None:
-            weights = np.mean(weights.reshape(values.shape)[simplices_here, :], axis=1)
-            result *= weights[:, :, None]
-        result = result.sum(axis=1) * tri.weights[:, None]  # over bands
+        result = compute_band_density(tri, values, points, weights=weights, resolve_bands=False)
 
         if resolved:
             return result, tri

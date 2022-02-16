@@ -137,6 +137,28 @@ def uniform_grid(size: tuple, endpoint: bool = False) -> np.ndarray:
     ))  # rewrite with np.mgrid?
 
 
+def ravel_grid(a: ndarray, shape: tuple) -> ndarray:
+    """
+    Ravels grid coordinates.
+
+    Parameters
+    ----------
+    a
+        Grid coordinates.
+    shape
+        Grid dimensions.
+
+    Returns
+    -------
+    result
+        A tensor with the last dimension squeezed into a big index.
+    """
+    return np.ravel_multi_index(tuple(
+        a[..., i]
+        for i in range(a.shape[-1])
+    ), shape)
+
+
 def input_as_list(func):
     """Transforms multiple position-only arguments into a list."""
     @wraps(func)
