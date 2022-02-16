@@ -5,7 +5,7 @@ from . import grid
 from .util import roarray, input_as_list, compute_angles, qhull_interpolation_driver, derived_from, _piece2bounds
 from .attrs import check_vectors_inv, convert_vectors_inv, convert_coordinates, check_coordinates, convert_values,\
     check_values
-from .triangulation import unique_counts, triangulation_result, simplex_volumes, compute_band_density
+from .triangulation import unique_counts, simplex_volumes, compute_band_density, Triangulation
 
 import numpy as np
 from numpy import ndarray
@@ -806,7 +806,7 @@ class Cell(Basis):
 
         weights = simplex_volumes(embedding.cartesian[tri, :]) / unique_counts(tri_hi) / self.volume
 
-        return triangulation_result(
+        return Triangulation(
             points=embedding.cartesian,
             points_i=ix_lo,
             simplices=tri,
@@ -814,7 +814,7 @@ class Cell(Basis):
         )
 
     def tetrahedron_density(self, points: ndarray, resolved: bool = False, weights: ndarray = None,
-                            joggle_eps: float = 1e-5, tri: ndarray = None) -> Union[ndarray, tuple]:
+                            joggle_eps: float = 1e-5) -> Union[ndarray, tuple]:
         """
         Computes the density of points' values (states).
         Modified tetrahedron method from PRB 49, 16223 by E. Blochl et al.
@@ -834,26 +834,22 @@ class Cell(Basis):
         joggle_eps
             The amplitude of random displacements for breaking coordinate
             symmetries.
-        tri
-            Pre-computed triangulation. Overrides all triangulation-related
-            properties.
 
         Returns
         -------
         density
-            A 1D or a multidimensional density array.
+            A 1D ``[n_points]`` or a 2D ``[n_tri, n_points]`` density array.
         triangulation
-            For ``resolved=True`` return triangulation.
+            For ``resolved=True`` returns triangulation.
         """
         assert self.ndim == 3
 
-        if tri is None:
-            tri = self.compute_triangulation(joggle_eps=joggle_eps)
+        tri = self.compute_triangulation(joggle_eps=joggle_eps)
         points = np.asanyarray(points, dtype=np.float64)
         values = self.values.reshape(self.size, -1)
         result = compute_band_density(tri, values, points, weights=weights, resolve_bands=False)
 
         if resolved:
-            return result, tri
+            return tri, result
         else:
             return result.sum(axis=0)

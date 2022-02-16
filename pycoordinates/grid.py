@@ -5,7 +5,7 @@ from . import cell
 from .util import input_as_list, derived_from, grid_coordinates, generate_path, _piece2bounds, roarray, ravel_grid
 from .attrs import check_vectors_inv, convert_vectors_inv, convert_grid, check_grid, convert_grid_values,\
     check_grid_values
-from .triangulation import unique_counts, cube_tetrahedrons, triangulation_result, simplex_volumes, compute_band_density
+from .triangulation import unique_counts, cube_tetrahedrons, simplex_volumes, compute_band_density, Triangulation
 
 import numpy as np
 from numpy import ndarray
@@ -513,7 +513,7 @@ class Grid(Basis):
         weights /= unique_counts(ix_hi_tri) * embedding.volume
         weights *= np.any(ix_hi_tri == 0, axis=1)
 
-        return triangulation_result(
+        return Triangulation(
             points=embedding.cartesian.reshape(-1, embedding.ndim),
             points_i=ix_lo_.astype(np.int32),
             simplices=tri,
@@ -540,21 +540,20 @@ class Grid(Basis):
 
         Returns
         -------
-        For `resolved=False` returns a 1D array with the density.
-        For `resolved=True` returns the corresponding grid with
-        values being the spatially-resolved density.
+        density
+            A 1D ``[n_points]`` or a 2D ``[n_tri, n_points]`` density array.
+        triangulation
+            For ``resolved=True`` returns triangulation.
+        grid
+            For ``resolved='grid'`` returns a grid with spatially-resolved densities
+            instead of the above.
         """
-        if len(self.vectors) != 3:
-            raise ValueError("The tetrahedron density method is implemented only for 3D grids")
-        if resolved and weights is not None:
-            raise NotImplemented("resolved=True with weights not implemented")
-
-        points = np.asanyarray(points, dtype=np.float64)
-        values = np.reshape(self.values, (self.size, -1))
         tri = self.compute_triangulation()
+        points = np.asanyarray(points, dtype=np.float64)
+        values = self.values.reshape(self.size, -1)
         result = compute_band_density(tri, values, points, weights=weights, resolve_bands=False)
 
-        if resolved:
+        if resolved == "grid":
             tri = np.unravel_index(tri.simplices, np.array(self.grid_shape) * 3)
             tri = np.min(tri, axis=-1)
             tri = tri % np.array(self.grid_shape)[:, None]
@@ -565,5 +564,7 @@ class Grid(Basis):
             result_grid.shape = self.grid_shape + points.shape
 
             return self.__class__(self, self.coordinates, result_grid)
+        elif resolved:
+            return tri, result
         else:
-            return result.sum(axis=0)  # over tetrahedrons
+            return result.sum(axis=0)

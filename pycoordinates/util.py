@@ -18,6 +18,7 @@ def roarray_copy(a: ndarray, **kwargs) -> ndarray:
 
 
 ro_float_array_copy = partial(roarray_copy, dtype=float)
+ro_int32_array_copy = partial(roarray_copy, dtype=np.int32)
 
 
 def compute_angles(v1: ndarray, v2: ndarray, axis: int = -1) -> ndarray:

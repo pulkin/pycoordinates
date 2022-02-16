@@ -39,7 +39,7 @@ def test_default(grid):
 
 
 def test_resolved():
-    d = grid50.tetrahedron_density((-.1, 0, .1, .2), resolved=True)
+    d = grid50.tetrahedron_density((-.1, 0, .1, .2), resolved="grid")
     testing.assert_equal(d.values.shape, (*grid50.grid_shape, 4))
     testing.assert_allclose(d.values.sum(axis=(0, 1, 2)), (0, 0, 2 * np.pi * 0.1, 2 * np.pi * 0.2), rtol=1e-2)
 
@@ -56,5 +56,5 @@ def test_fail():
         coordinates=grid50.coordinates[:2],
         values=grid50.values[:, :, 0, ...],
     )
-    with pytest.raises(ValueError):
+    with pytest.raises(AssertionError):
         g.tetrahedron_density((-.1, 0, .1, .2))
