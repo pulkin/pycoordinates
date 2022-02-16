@@ -49,6 +49,38 @@ class Triangulation:
     simplices = attrib(type=ndarray, converter=convert_tri_simplices, validator=check_tri_simplices)
     weights = attrib(type=ndarray, converter=convert_tri_weights, validator=check_tri_weights)
 
+    def compute_band_density(self, values: ndarray, points: ndarray, weights: ndarray = None,
+                             resolve_bands: bool = False) -> ndarray:
+        """
+        Computes band density.
+        3D only.
+
+        Parameters
+        ----------
+        values
+            Band values.
+        points
+            Values to compute density at.
+        weights
+            Optional weights to multiply densities.
+        resolve_bands
+            If True, resolves bands.
+
+        Returns
+        -------
+        densities
+            The resulting densities.
+        """
+        assert self.simplices.shape[1] == 4, "Triangulation is not tetrahedrons"
+        simplices_here = self.points_i[self.simplices]
+        if weights is not None:
+            weights = weights.reshape(values.shape)
+        return compute_density_from_triangulation(
+            simplices_here, self.weights, values,
+            points,
+            band_weights=weights,
+            resolve_bands=resolve_bands)
+
 
 def unique_counts(a: ndarray) -> ndarray:
     """
@@ -87,37 +119,3 @@ def simplex_volumes(a: ndarray) -> ndarray:
     assert a.shape[-1] == a.shape[-2] - 1
     n = a.shape[-1]
     return np.abs(np.linalg.det(a[..., :-1, :] - a[..., -1:, :])) / factorial(n)
-
-
-def compute_band_density(triangulation: Triangulation, values: ndarray, points: ndarray,
-                         weights: ndarray = None, resolve_bands: bool = False) -> ndarray:
-    """
-    Computes band density.
-    3D only.
-
-    Parameters
-    ----------
-    triangulation
-        Triangulation to use.
-    values
-        Band values.
-    points
-        Values to compute density at.
-    weights
-        Optional weights to multiply densities.
-    resolve_bands
-        If True, resolves bands.
-
-    Returns
-    -------
-    densities
-        The resulting densities.
-    """
-    assert triangulation.simplices.shape[1] == 4, "Triangulation is not tetrahedrons"
-    simplices_here = triangulation.points_i[triangulation.simplices]
-    if weights is not None:
-        weights = weights.reshape(values.shape)
-    return compute_density_from_triangulation(
-        simplices_here, triangulation.weights, values, points,
-        band_weights=weights,
-        resolve_bands=resolve_bands)

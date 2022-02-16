@@ -5,7 +5,7 @@ from . import cell
 from .util import input_as_list, derived_from, grid_coordinates, generate_path, _piece2bounds, roarray, ravel_grid
 from .attrs import check_vectors_inv, convert_vectors_inv, convert_grid, check_grid, convert_grid_values,\
     check_grid_values
-from .triangulation import unique_counts, cube_tetrahedrons, simplex_volumes, compute_band_density, Triangulation
+from .triangulation import unique_counts, cube_tetrahedrons, simplex_volumes, Triangulation
 
 import numpy as np
 from numpy import ndarray
@@ -551,7 +551,7 @@ class Grid(Basis):
         tri = self.compute_triangulation()
         points = np.asanyarray(points, dtype=np.float64)
         values = self.values.reshape(self.size, -1)
-        result = compute_band_density(tri, values, points, weights=weights, resolve_bands=False)
+        result = tri.compute_band_density(values, points, weights=weights, resolve_bands=False)
 
         if resolved == "grid":
             tri = np.unravel_index(tri.simplices, np.array(self.grid_shape) * 3)

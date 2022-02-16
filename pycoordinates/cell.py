@@ -5,7 +5,7 @@ from . import grid
 from .util import roarray, input_as_list, compute_angles, qhull_interpolation_driver, derived_from, _piece2bounds
 from .attrs import check_vectors_inv, convert_vectors_inv, convert_coordinates, check_coordinates, convert_values,\
     check_values
-from .triangulation import unique_counts, simplex_volumes, compute_band_density, Triangulation
+from .triangulation import unique_counts, simplex_volumes, Triangulation
 
 import numpy as np
 from numpy import ndarray
@@ -847,7 +847,7 @@ class Cell(Basis):
         tri = self.compute_triangulation(joggle_eps=joggle_eps)
         points = np.asanyarray(points, dtype=np.float64)
         values = self.values.reshape(self.size, -1)
-        result = compute_band_density(tri, values, points, weights=weights, resolve_bands=False)
+        result = tri.compute_band_density(values, points, weights=weights, resolve_bands=False)
 
         if resolved:
             return tri, result
