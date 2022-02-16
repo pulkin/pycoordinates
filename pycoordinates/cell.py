@@ -153,7 +153,7 @@ class Cell(Basis):
             d["coordinates"] = d["coordinates"][order]
             d["values"] = d["values"][order]
 
-        return self.__class__(**d)
+        return self.copy(**d)
 
     @input_as_list
     def distances(self, ids: list, cutoff: float = None, other: Union[Cell, ndarray] = None) -> Union[ndarray, csr_matrix]:
@@ -550,7 +550,7 @@ class Cell(Basis):
             shift += c.vectors[vector, :]
         cartesian = np.concatenate(cartesian, axis=0)
 
-        return self.__class__.from_cartesian(basis, cartesian, values)
+        return self.cartesian_copy(vectors=basis, cartesian=cartesian, values=values)
 
     @input_as_list
     def supercell(self, vec: list) -> Cell:
@@ -626,7 +626,7 @@ class Cell(Basis):
         -------
         A new unit cell with reordered vectors.
         """
-        return self.__class__(super().transpose_vectors(new), self.coordinates[:, new], self.values, meta=self.meta)
+        return self.copy(vectors=super().transpose_vectors(new), coordinates=self.coordinates[:, new])
 
     def rounded(self, decimals: int = 8) -> Cell:
         """
@@ -641,7 +641,7 @@ class Cell(Basis):
         -------
         A new Cell with rounded vectors.
         """
-        return self.__class__(super().rounded(decimals), np.around(self.coordinates, decimals=decimals), self.values, meta=self.meta)
+        return self.copy(vectors=super().rounded(decimals), coordinates=np.around(self.coordinates, decimals=decimals))
 
     def joggled(self, joggle_eps: float = 1e-5, vectors=True):
         """
@@ -748,7 +748,7 @@ class Cell(Basis):
             points_i = self.transform_to_cartesian(points)
 
         # Interpolate
-        return self.__class__(self, points, derived_from(driver(data_points, data_values, points_i, **kwargs), self.values))
+        return self.copy(coordinates=points, values=derived_from(driver(data_points, data_values, points_i, **kwargs), self.values))
 
     def compute_embedding(self, size: int = 1) -> Cell:
         """
