@@ -34,9 +34,12 @@ cdef inline void sort4(double* p0, double* p1, double* p2, double* p3):
 
 def compute_density_from_triangulation(
         const int[:, ::1] triangulation,  # [n_tri, 4]
+        const double[::1] tri_weights,  # [n_tri]
         const double[:, ::1] bands,  # [n_pts, n_bands]
         const double[::1] target,  # [n_target]
-):  # [n_tri, n_bands, n_target]
+        object band_weights = None,  # [n_pts, n_bands]
+        int resolve_bands = False,
+):  # [n_tri, n_bands, n_target] or [n_tri, n_target]
     assert triangulation.shape[1] == 4
 
     cdef int n_tri = triangulation.shape[0]
@@ -44,15 +47,23 @@ def compute_density_from_triangulation(
     cdef int n_target = target.shape[0]
 
     cdef int t1, t2, t3, t4, trix, bix, i
-    cdef double e, e1, e2, e3, e4
+    cdef double e1, e2, e3, e4, w, d
 
-    cdef double[:, :, ::1] result = numpy.zeros((n_tri, n_bands, n_target))
+    cdef double[:, ::1] band_weights_buffer = band_weights
+
+    cdef double[:, :, ::1] result_resolved
+    cdef double[:, ::1] result
+    if resolve_bands:
+        result_resolved = numpy.zeros((n_tri, n_bands, n_target))
+    else:
+        result = numpy.zeros((n_tri, n_target))
 
     for trix in range(n_tri):
         t1 = triangulation[trix, 0]
         t2 = triangulation[trix, 1]
         t3 = triangulation[trix, 2]
         t4 = triangulation[trix, 3]
+        w = tri_weights[trix]
 
         for bix in range(n_bands):
             e1 = bands[t1, bix]
@@ -61,7 +72,16 @@ def compute_density_from_triangulation(
             e4 = bands[t4, bix]
             sort4(&e1, &e2, &e3, &e4)
 
+            if band_weights_buffer != None:
+                w *= (band_weights[t1, bix] + band_weights[t2, bix] + band_weights[t3, bix] + band_weights[t4, bix]) / 4
+
             for i in range(n_target):
-                e = target[i]
-                result[trix, bix, i] = _density(e, e1, e2, e3, e4)
-    return numpy.asarray(result)
+                d = _density(target[i], e1, e2, e3, e4) * w
+                if resolve_bands:
+                    result_resolved[trix, bix, i] = d
+                else:
+                    result[trix, i] += d
+    if resolve_bands:
+        return numpy.asarray(result_resolved)
+    else:
+        return numpy.asarray(result)

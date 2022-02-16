@@ -104,10 +104,9 @@ def compute_band_density(triangulation: triangulation_result, values: ndarray, p
     """
     assert triangulation.simplices.shape[1] == 4, "Triangulation is not tetrahedrons"
     simplices_here = triangulation.points_i[triangulation.simplices]
-    result = compute_density_from_triangulation(simplices_here, values, points) * triangulation.weights[:, None, None]
     if weights is not None:
-        weights = np.mean(weights.reshape(values.shape)[simplices_here, :], axis=1)
-        result *= weights[:, :, None]
-    if not resolve_bands:
-        result = result.sum(axis=1)
-    return result
+        weights = weights.reshape(values.shape)
+    return compute_density_from_triangulation(
+        simplices_here, triangulation.weights, values, points,
+        band_weights=weights,
+        resolve_bands=resolve_bands)

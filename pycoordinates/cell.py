@@ -850,7 +850,7 @@ class Cell(Basis):
         if tri is None:
             tri = self.compute_triangulation(joggle_eps=joggle_eps)
         points = np.asanyarray(points, dtype=np.float64)
-        values = self.values.reshape(self.size, -1)  # flattens
+        values = self.values.reshape(self.size, -1)
         result = compute_band_density(tri, values, points, weights=weights, resolve_bands=False)
 
         if resolved:
