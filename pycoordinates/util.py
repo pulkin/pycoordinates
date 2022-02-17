@@ -1,4 +1,4 @@
-from numpy import array, ndarray
+from numpy import ndarray
 import numpy as np
 from scipy.interpolate import LinearNDInterpolator
 
@@ -14,7 +14,7 @@ def roarray(a: ndarray) -> ndarray:
 
 def roarray_copy(a: ndarray, **kwargs) -> ndarray:
     """Read-only copy."""
-    return roarray(array(a, **kwargs))
+    return roarray(np.asanyarray(a, **kwargs))
 
 
 ro_float_array_copy = partial(roarray_copy, dtype=float)

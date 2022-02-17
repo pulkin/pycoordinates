@@ -1,4 +1,4 @@
-from .util import generate_path, uniform_grid
+from .util import generate_path, uniform_grid, roarray_copy
 from .basis import Basis
 
 import numpy as np
@@ -107,3 +107,13 @@ def test_uniform_grid():
             (0, .5, 2. / 3),
         ],
     ]])
+
+
+def test_array_copy_subclass():
+    class myarray(np.ndarray):
+        pass
+    test = myarray((3,))
+    assert type(test) is myarray
+    test_copy = roarray_copy(test)
+    testing.assert_equal(test, test_copy)
+    assert type(test_copy) is myarray
