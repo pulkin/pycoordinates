@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from .basis import Basis, _gaps2x
 from . import grid
-from .util import roarray, input_as_list, compute_angles, qhull_interpolation_driver, derived_from, _piece2bounds
+from .util import roarray, input_as_list, compute_angles, qhull_interpolation_driver, _piece2bounds
 from .attrs import check_vectors_inv, convert_vectors_inv, convert_coordinates, check_coordinates, convert_values,\
     check_values
 from .triangulation import unique_counts, simplex_volumes, Triangulation
@@ -748,7 +748,7 @@ class Cell(Basis):
             points_i = self.transform_to_cartesian(points)
 
         # Interpolate
-        return self.copy(coordinates=points, values=derived_from(driver(data_points, data_values, points_i, **kwargs), self.values))
+        return self.copy(coordinates=points, values=driver(data_points, data_values, points_i, **kwargs))
 
     def compute_embedding(self, size: int = 1) -> Cell:
         """

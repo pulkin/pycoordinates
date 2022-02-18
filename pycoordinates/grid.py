@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from .basis import Basis, _gaps2x
 from . import cell
-from .util import input_as_list, derived_from, grid_coordinates, generate_path, _piece2bounds, roarray, ravel_grid
+from .util import input_as_list, grid_coordinates, generate_path, _piece2bounds, roarray, ravel_grid
 from .attrs import check_vectors_inv, convert_vectors_inv, convert_grid, check_grid, convert_grid_values,\
     check_grid_values
 from .triangulation import unique_counts, cube_tetrahedrons, simplex_volumes, Triangulation
@@ -391,7 +391,7 @@ class Grid(Basis):
             data_values = normalized.values
 
         # Interpolate
-        return derived_from(driver(data_points, data_values, points, **kwargs), self.values)
+        return driver(data_points, data_values, points, **kwargs)
 
     def interpolate_to_grid(self, points: list, **kwargs) -> Grid:
         """

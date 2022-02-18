@@ -14,7 +14,7 @@ def roarray(a: ndarray) -> ndarray:
 
 def roarray_copy(a: ndarray, **kwargs) -> ndarray:
     """Read-only copy."""
-    return roarray(np.asanyarray(a, **kwargs))
+    return roarray(np.asanyarray(a, **kwargs).copy())
 
 
 ro_float_array_copy = partial(roarray_copy, dtype=float)
@@ -200,25 +200,6 @@ def qhull_interpolation_driver(points: ndarray, values: ndarray, points_i: ndarr
     The interpolated values.
     """
     return LinearNDInterpolator(points, values, **kwargs)(points_i)
-
-
-def derived_from(derived: ndarray, reference: ndarray) -> ndarray:
-    """
-    Arrays derived from other arrays.
-    Used to cast units between arrays (stub for now).
-
-    Parameters
-    ----------
-    derived : ndarray
-        Derived array.
-    reference : ndarray
-        The reference array.
-
-    Returns
-    -------
-    The resulting array adjusted.
-    """
-    return derived
 
 
 def _piece2bounds(piece: Union[ndarray, list, tuple], dim: int) -> (ndarray, ndarray):
