@@ -49,4 +49,4 @@ jobs:
     - name: Build source distribution
       run: python setup.py sdist
     - name: Install
-      run: pip install pycoordinates --no-index --no-cache-dir --find-links file://$(pwd)/dist
+      run: pip install dist/*.tar.gz
