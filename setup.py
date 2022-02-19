@@ -11,7 +11,7 @@ with open('requirements.txt') as f:
 
 setup(
     name='pycoordinates',
-    version="0.1.0",
+    version="0.1.1",
     author='pycoordinates contributors',
     author_email='gpulkin@gmail.com',
     packages=find_packages(),
