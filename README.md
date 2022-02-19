@@ -6,3 +6,29 @@ pycoordinates
 
 A tiny implementation of typical coordinate transformations used in physics, materials science,
 and quantum chemistry.
+
+Install
+-------
+```bash
+pip install pycoordinates
+```
+
+Build from source
+-----------------
+1. Clone this repository
+   ```bash
+   git clone https://github.com/pulkin/pycoordinates.git
+   cd pycoordinates
+   ```
+2. Install build system
+   ```bash
+   pip install build
+   ```
+3. Build
+   ```bash
+   python -m build
+   ```
+4. Install
+   ```
+   pip install dist/*.tar.gz
+   ```
