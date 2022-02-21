@@ -42,6 +42,34 @@ def compute_density_from_triangulation(
         object band_weights = None,  # [n_pts, n_bands]
         int resolve_bands = False,
 ):  # [n_tri, n_bands, n_target] or [n_tri, n_target]
+    """
+    Based on previously computed triangulation, evaluates tetrahedron band density.
+
+    Parameters
+    ----------
+    triangulation
+        A 2D `[n_tri, 4]` array with simplex (tetrahedron) indices.
+    tri_weights
+        A 1D `[n_tri]` array with simplex weights coming as a pre-factor
+        for each density point.
+    bands
+        A 2D `[n_pts, n_bands]` array with band energies for the density.
+    target
+        A 1D `[n_target]` array with target energies where the density has
+        to be computed.
+    band_weights
+        An optional 2D `[n_pts, n_bands]` array with band weights. While
+        `tri_weights` are defined per tetrahedron, band weights are
+        defined per-vertex per-band.
+    resolve_bands
+        If True, resolves the density per-band.
+
+    Returns
+    -------
+    result
+        Depending on `resolve_bands`, a 2D `[n_tri, n_target]`
+        or a 3D `[n_tri, n_bands, n_target]` array with densities.
+    """
     assert triangulation.shape[1] == 4
 
     cdef int n_tri = triangulation.shape[0]
