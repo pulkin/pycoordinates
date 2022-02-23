@@ -205,3 +205,26 @@ def qhull_interpolation_driver(points: ndarray, values: ndarray, points_i: ndarr
 def _piece2bounds(piece: Union[ndarray, list, tuple], dim: int) -> (ndarray, ndarray):
     piece = np.reshape(piece, (2, dim))
     return np.amin(piece, axis=0), np.amax(piece, axis=0)
+
+
+def orthogonal_basis(base: ndarray) -> ndarray:
+    """
+    Prepare an orthogonal basis.
+
+    Parameters
+    ----------
+    base
+        Base vectors to start with.
+
+    Returns
+    -------
+    result
+        A square matrix with an orthogonal basis.
+    """
+    base = np.asanyarray(base)
+    n, m = base.shape
+    assert n <= m
+    base = np.concatenate([base, np.random.rand(m - n, m)])
+    q, r = np.linalg.qr(base.T)
+    s = np.sign(np.diag(r))
+    return q.T * s[:, None]

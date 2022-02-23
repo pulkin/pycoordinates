@@ -1,4 +1,4 @@
-from .util import generate_path, uniform_grid, roarray_copy
+from .util import generate_path, uniform_grid, roarray_copy, orthogonal_basis
 from .basis import Basis
 
 import numpy as np
@@ -117,3 +117,17 @@ def test_array_copy_subclass():
     test_copy = roarray_copy(test)
     testing.assert_equal(test, test_copy)
     assert type(test_copy) is myarray
+
+
+def test_orthogonal_basis():
+    b = orthogonal_basis([
+        (0, 0, 1),
+        (1, 0, 0.5),
+    ])
+    testing.assert_allclose(b[:2], [
+        (0, 0, 1),
+        (1, 0, 0),
+    ])
+    testing.assert_allclose(np.abs(b[2:]), [
+        (0, 1, 0),
+    ])
