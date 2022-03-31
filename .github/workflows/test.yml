@@ -50,3 +50,8 @@ jobs:
       run: python -m build
     - name: Install
       run: pip install dist/*.tar.gz
+    - name: Save sdist
+      uses: actions/upload-artifact@v3
+      with:
+        name: source-distribution
+        path: dist/*.tar.gz
