@@ -1,4 +1,5 @@
 from .basis import Basis
+from .util import uniform_grid
 
 import numpy as np
 from numpy import testing
@@ -226,3 +227,43 @@ class TestBasis:
         assert all(self.b == i for i in Basis.from_state_data((self.b.state_dict(),) * 2))
         with pytest.raises(TypeError):
             Basis.from_state_data(object())
+
+    def test_ws_cubic(self):
+        # order is unknown so sets are used
+        v = uniform_grid((2, 2, 2), endpoint=True) - .5
+        faces = set()
+        for fixed_dim in range(3):
+            for fixed_plane in range(2):
+                face = set()
+                for i in range(2):
+                    for j in range(2):
+                        ix = [i, j, None]
+                        ix.insert(fixed_dim, fixed_plane)
+                        face.add(tuple(v[ix].squeeze(0)))
+                faces.add(frozenset(face))
+        test = set(frozenset(map(tuple, face)) for face in self.c.compute_ws_faces())
+        assert faces == test
+
+    def test_ws_hex(self):
+        def _round(x):
+            return tuple(np.array(x).round(6))
+
+        sq3 = (1./3) ** .5
+        hexagon = tuple(map(_round, (
+            (.5, .5 * sq3),
+            (0, sq3),
+            (-.5, .5 * sq3),
+            (-.5, -.5 * sq3),
+            (0, -sq3),
+            (.5, -.5 * sq3),
+            (.5, .5 * sq3),  # wrap around
+        )))
+        faces = set()
+        for i, j in zip(hexagon[:-1], hexagon[1:]):
+            faces.add(frozenset((
+                i + (-1.5,), i + (1.5,), j + (-1.5,), j + (1.5,)
+            )))
+        for z in (-1.5, 1.5):
+            faces.add(frozenset(i + (z,) for i in hexagon[:-1]))
+        test = set(frozenset(map(_round, face)) for face in self.b.compute_ws_faces())
+        assert faces == test
