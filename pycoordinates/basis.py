@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from .util import roarray, compute_angles, input_as_list
+from .util import roarray, compute_angles, input_as_list, uniform_grid
 from .attrs import check_vectors, convert_vectors, check_vectors_inv, convert_vectors_inv
 
 import numpy as np
 from numpy import ndarray, array, diag
+from scipy.spatial import Voronoi
 from attr import attrs, attrib, asdict
 
 from typing import Union
@@ -165,17 +166,21 @@ class Basis(Identifiable):
         cosines = array(cosines)
         assert lengths.shape == (3,), "Only 3-vectors are accepted as lengths"
         assert cosines.shape == (3,), "Only 3-vectors are accepted as cosines"
-        volume = lengths[0] * lengths[1] * lengths[2] * (
-                1 + 2 * cosines[0] * cosines[1] * cosines[2] - cosines[0] ** 2 - cosines[1] ** 2 - cosines[2] ** 2
-        ) ** .5
-        sines = (1 - cosines ** 2) ** .5
-        height = volume / lengths[0] / lengths[1] / sines[2]
-        vectors = array((
-            (lengths[0], 0, 0),
-            (lengths[1] * cosines[2], lengths[1] * sines[2], 0),
-            (lengths[2] * cosines[1], abs((lengths[2] * sines[1]) ** 2 - height ** 2) ** .5, height)
-        ))
-        return cls(vectors, **kwargs)
+        # QE recipe
+        a, b, c = lengths
+        cos_alpha, cos_beta, cos_gamma = cosines
+        sin_gamma = (1 - cos_gamma ** 2) ** .5
+        term = 1 + 2 * np.prod(cosines) - (cosines ** 2).sum()
+        term = (term / (1 - cos_gamma ** 2)) ** .5  # probably because of precision
+        return cls(array([
+            (a, 0, 0),
+            (b * cos_gamma, b * sin_gamma, 0),
+            (
+                c * cos_beta,
+                c * (cos_alpha - cos_beta * cos_gamma) / sin_gamma,
+                c * term,
+            )
+        ]), **kwargs)
 
     @classmethod
     def diamond(cls, a: float, **kwargs) -> Basis:
@@ -487,6 +492,29 @@ class Basis(Identifiable):
         if set(order) != set(ref_order):
             raise ValueError(f"order={order} must be a transpose of {ref_order}")
         return Basis(self.vectors[order, :], meta=self.meta)
+
+    def compute_ws_cell(self) -> Voronoi:
+        """
+        Computes the Wigner–Seitz cell using Voronoi diagram of the
+        origin embedded in its images along all dimensions.
+
+        Returns
+        -------
+        Voronoi diagram where one of the regions is Wigner–Seitz cell.
+        """
+        grid = uniform_grid((3,) * self.ndim, endpoint=True) * 2 - 1
+        grid_cartesian = self.transform_to_cartesian(grid).reshape(-1, self.ndim)
+        return Voronoi(grid_cartesian)
+
+    def compute_ws_faces(self) -> list:
+        voronoi = self.compute_ws_cell()
+        key = (3 ** self.ndim) // 2
+
+        result = []
+        for ridge, normal in zip(voronoi.ridge_vertices, voronoi.ridge_points):
+            if key in normal:
+                result.append(voronoi.vertices[ridge, :])
+        return result
 
 
 def _gaps2x(basis, gaps: list, units: str) -> np.ndarray:
